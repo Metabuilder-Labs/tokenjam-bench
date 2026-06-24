@@ -5,7 +5,7 @@ from __future__ import annotations
 from benchmarks.base import Benchmark, ScoreResult, Task
 
 BENCHMARK_NAMES = ["samples", "humaneval", "gsm8k"]
-AGENT_BENCHMARK_NAMES = ["sample-agent"]
+AGENT_BENCHMARK_NAMES = ["sample-agent", "swe-bench-lite"]
 
 
 def get_benchmark(name: str) -> Benchmark:
@@ -26,6 +26,9 @@ def get_agent_benchmark(name: str):
     if name == "sample-agent":
         from benchmarks.sample_agent import SampleAgentBenchmark
         return SampleAgentBenchmark()
+    if name == "swe-bench-lite":
+        from benchmarks.swe_bench_lite import SWEBenchLiteBenchmark
+        return SWEBenchLiteBenchmark()
     raise ValueError(
         f"Unknown agent benchmark '{name}'. Available: {AGENT_BENCHMARK_NAMES}"
     )
