@@ -52,11 +52,47 @@ def scan_runs(directory: str | Path) -> list[dict[str, Any]]:
     return runs
 
 
+def history_summary(db_path: str | Path) -> dict:
+    """Read-only summary of the historical DB (count, versions, configs)."""
+    import duckdb
+
+    from history import _version_key
+    p = Path(db_path)
+    empty = {"available": False, "count": 0, "versions": [], "configs": []}
+    if not p.exists():
+        return empty
+    try:
+        conn = duckdb.connect(str(p), read_only=True)
+        try:
+            count = conn.execute("SELECT COUNT(*) FROM benchmark_runs").fetchone()[0]
+            vers = [r[0] for r in conn.execute(
+                "SELECT DISTINCT tokenjam_version FROM benchmark_runs "
+                "WHERE tokenjam_version IS NOT NULL").fetchall()]
+            cfgs = [dict(zip(["benchmark", "original_model", "candidate_model", "runs"], r))
+                    for r in conn.execute(
+                        "SELECT benchmark, original_model, candidate_model, COUNT(*) "
+                        "FROM benchmark_runs GROUP BY 1,2,3 ORDER BY 4 DESC").fetchall()]
+        finally:
+            conn.close()
+        return {"available": True, "count": int(count),
+                "versions": sorted(vers, key=_version_key), "configs": cfgs}
+    except Exception:
+        return empty
+
+
 def serve(directory: str | Path = "results", host: str = "127.0.0.1",
           port: int = 7392) -> None:
     """Start the dashboard server (blocking until Ctrl-C)."""
     root = Path(directory)
     root.mkdir(parents=True, exist_ok=True)
+
+    # Index existing artifacts into the historical DB (best-effort, P3).
+    try:
+        from history import BenchmarkHistory
+        with BenchmarkHistory(root / "history.duckdb") as _h:
+            _h.ingest_dir(root)
+    except Exception:
+        pass
 
     class _Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):  # quiet
@@ -80,6 +116,9 @@ def serve(directory: str | Path = "results", host: str = "127.0.0.1",
                     json.loads((root / r["file"]).read_text()) for r in scan_runs(root)
                 ]))
                 self._send(json.dumps(payload).encode(), "application/json")
+            elif path == "/api/history":
+                self._send(json.dumps(history_summary(root / "history.duckdb")).encode(),
+                           "application/json")
             elif path.startswith("/report/"):
                 # Path-traversal safe: only a basename of an existing .json here.
                 name = Path(path[len("/report/"):]).name
@@ -158,9 +197,10 @@ const V={no_significant_regression:'v-green',quality_signals_improved:'v-green',
 function fmtTime(ts){if(!ts)return'';const d=new Date(ts*1000);return d.toLocaleString();}
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 async function tick(){
-  let runs=[],mtx={regressions_found:0};
+  let runs=[],mtx={regressions_found:0},hist={available:false,count:0,versions:[]};
   try{runs=await (await fetch('/api/runs')).json();}catch(e){return;}
   try{mtx=await (await fetch('/api/matrix')).json();}catch(e){}
+  try{hist=await (await fetch('/api/history')).json();}catch(e){}
   document.getElementById('updated').textContent='updated '+new Date().toLocaleTimeString();
   // tiles
   const real=runs.filter(r=>!r.mock).length;
@@ -168,6 +208,8 @@ async function tick(){
   document.getElementById('tiles').innerHTML=
     tile(runs.length,'proof runs')+tile(real,'live (non-mock)')+
     tile(mtx.regressions_found||0,'cross-version regressions')+
+    tile(hist.count||0,'runs in history')+
+    tile((hist.versions||[]).length,'tokenjam versions')+
     (latest?tile((latest.cost_delta_pct>0?'+':'')+latest.cost_delta_pct+'%','latest Δ cost'):'');
   // banner
   const b=document.getElementById('banner');
