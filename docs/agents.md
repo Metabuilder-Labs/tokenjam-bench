@@ -184,7 +184,90 @@ A task **fails** if:
 
 This is by design — we measure whether the cheaper model maintains the *full behavior* of the original, not just the final output.
 
-## Mock Agent Behavior
+## SWE-Bench Tools
+
+[`agents/swe_bench_tools.py`](../agents/swe_bench_tools.py)
+
+Developer tools for repository editing and testing. Used by the [SWE-Bench Lite benchmark](benchmarks.md#swe-bench-lite).
+
+### SWEBenchToolSet
+
+```python
+class SWEBenchToolSet:
+    def __init__(self, workspace: Path): ...
+```
+
+All tools operate within a specific workspace directory. Path traversal outside the workspace is blocked.
+
+### `view()`
+
+```python
+def view(self, args: {"path": str}) -> ToolResult
+```
+
+Read a file with line numbers. Returns error if file doesn't exist.
+
+### `view_range()`
+
+```python
+def view_range(self, args: {"path": str, "start": int, "end": int}) -> ToolResult
+```
+
+Read specific line range (1-indexed). Clamps to valid range.
+
+### `str_replace()`
+
+```python
+def str_replace(self, args: {"path": str, "old_str": str, "new_str": str}) -> ToolResult
+```
+
+Replace exact string in file. Requirements:
+- `old_str` must exist in the file
+- `old_str` must appear exactly once (prevents accidental mass-replace)
+- Returns error otherwise
+
+### `create()`
+
+```python
+def create(self, args: {"path": str, "content": str}) -> ToolResult
+```
+
+Create a new file. Returns error if file already exists.
+
+### `insert()`
+
+```python
+def insert(self, args: {"path": str, "line": int, "new_str": str}) -> ToolResult
+```
+
+Insert text after a specific line (1-indexed).
+
+### `bash()`
+
+```python
+def bash(self, args: {"command": str, "timeout": int}) -> ToolResult
+```
+
+Run a shell command in the workspace. Has a configurable timeout (default 30s). Marked as **dangerous** for safety gate purposes.
+
+### Safety Features
+
+| Feature | Implementation |
+|---------|---------------|
+| Path traversal | Blocked — paths resolving outside workspace are rejected |
+| Exact-match replace | Multiple occurrences → error |
+| Bash timeout | Long-running commands timeout safely |
+| Dangerous flag | `bash` marked dangerous for safety gate |
+
+### Tool Specifications
+
+```python
+toolset.get_tool_specs() -> list[dict]
+```
+
+Returns all 6 tool definitions in provider-agnostic format for model advertisement.
+
+---
 
 [`models/mock_agent_client.py`](../models/mock_agent_client.py)
 
