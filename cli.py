@@ -9,6 +9,7 @@ from rich.table import Table
 
 from agent_pipeline import run_agent_proof
 from benchmarks import AGENT_BENCHMARK_NAMES, BENCHMARK_NAMES
+from matrix import build_series, load_artifacts, series_to_dict, total_regressions
 from pipeline import resolve_candidate, run_proof
 from report_html import load_and_render, write_html_report
 from version import resolve_tokenjam_build
@@ -219,6 +220,56 @@ def cmd_report(artifact: str, out: str | None, open_browser: bool) -> None:
     if open_browser:
         import webbrowser
         webbrowser.open(path.as_uri())
+
+
+@cli.command("matrix")
+@click.option("--dir", "directory", default="results", show_default=True,
+              help="Directory of version-stamped proof artifacts to compare.")
+@click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
+@click.pass_context
+def cmd_matrix(ctx: click.Context, directory: str, output_json: bool) -> None:
+    """Compare proofs across TokenJam versions and flag regressions.
+
+    Exits non-zero when any regression (accuracy / cost / recommendation change)
+    is detected — so it doubles as a CI guard against TokenJam releases.
+    """
+    series = build_series(load_artifacts(directory))
+
+    if output_json:
+        console.print_json(data=series_to_dict(series))
+    elif not series:
+        console.print(
+            f"[dim]No proof artifacts in '{directory}'. Run some proofs across "
+            "TokenJam versions first (run, then `make update-tokenjam`, then run again).[/dim]"
+        )
+    else:
+        for s in series:
+            table = Table(title=f"{s.benchmark} · {s.original_model}", title_style="bold")
+            table.add_column("tokenjam")
+            table.add_column("candidate")
+            table.add_column("cand pass", justify="right")
+            table.add_column("acc Δ", justify="right")
+            table.add_column("cost Δ", justify="right")
+            table.add_column("verdict")
+            table.add_column("regressions")
+            for p in s.points:
+                flags = "; ".join(p.regressions)
+                flag_disp = f"[yellow]{flags}[/yellow]" if flags else "[green]ok[/green]"
+                table.add_row(
+                    p.tokenjam_version, p.candidate_model,
+                    f"{p.candidate_pass_rate*100:.0f}%",
+                    f"{p.accuracy_delta_pp:+.1f}pp", f"{p.cost_delta_pct:+.1f}%",
+                    p.verdict, flag_disp,
+                )
+            console.print(table)
+
+    n = total_regressions(series)
+    if not output_json:
+        if n:
+            console.print(f"\n[yellow]⚠ {n} regression(s) detected across versions.[/yellow]")
+        elif series:
+            console.print("\n[green]✓ no cross-version regressions.[/green]")
+    ctx.exit(1 if n else 0)
 
 
 def _summary_json(result_dict: dict) -> str:  # pragma: no cover - convenience
