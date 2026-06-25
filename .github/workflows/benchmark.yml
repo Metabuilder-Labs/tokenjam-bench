@@ -1,0 +1,56 @@
+name: benchmark
+
+# Continuous benchmarking against the LATEST TokenJam release.
+# - nightly cron picks up new TokenJam releases automatically (pip install -U)
+# - manual dispatch for on-demand runs
+on:
+  schedule:
+    - cron: "0 6 * * *"        # 06:00 UTC nightly
+  workflow_dispatch:
+    inputs:
+      live:
+        description: "Run LIVE benchmarks (needs the DEEPSEEK_API_KEY secret)"
+        type: boolean
+        default: true
+      limit:
+        description: "Task limit for the live HumanEval run"
+        type: string
+        default: "10"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    env:
+      # Key-gated: live proofs only run if this secret is configured on the repo.
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      TJBENCH_JUDGE: deepseek
+      TJBENCH_JUDGE_METRIC: correctness
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install latest TokenJam + bench extras
+        run: |
+          pip install -U tokenjam
+          pip install -e ".[dev,providers,datasets,judge]"
+
+      - name: Show the TokenJam version under test
+        run: python -c "import importlib.metadata as m; print('tokenjam', m.version('tokenjam'))"
+
+      - name: Run benchmarks (offline always; live if the key secret is set)
+        run: python ci_benchmark.py
+
+      - name: Upload version-stamped artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: results/
+          if-no-files-found: warn
