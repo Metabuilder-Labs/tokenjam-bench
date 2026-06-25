@@ -35,6 +35,10 @@ datasets = [
     "datasets>=2.0",
     "human-eval>=1.0",
 ]
+# DeepEval-backed judge for the `judged` benchmark (correctness / faithfulness /
+# answer-relevancy / task-completion). The judge model needs its own API key.
+# The offline MockJudge needs none of this.
+judge = ["deepeval>=1.0"]
 dev = ["pytest", "ruff"]
 
 [project.scripts]
