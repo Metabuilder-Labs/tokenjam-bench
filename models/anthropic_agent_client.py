@@ -103,7 +103,10 @@ def get_tool_calling_client(spec: str, *, mock: bool = False, behavior: str = "o
         return MockAgentClient(model=model, provider=provider, behavior=behavior)
     if provider == "anthropic":
         return AnthropicAgentClient(model)
+    from models.openai_compatible import PROVIDERS, OpenAICompatibleAgentClient
+    if provider in PROVIDERS:  # openai, deepseek, future compatible providers
+        return OpenAICompatibleAgentClient(model, provider_name=provider)
     raise NotImplementedError(
-        f"Live agent runs for provider '{provider}' aren't implemented yet "
-        f"(Anthropic is). Use --mock, or run with an anthropic:* model."
+        f"Live agent runs for provider '{provider}' aren't implemented yet. "
+        f"Supported: anthropic, {sorted(PROVIDERS)}. Or use --mock."
     )
