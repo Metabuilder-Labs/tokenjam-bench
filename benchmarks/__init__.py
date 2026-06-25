@@ -5,7 +5,11 @@ from __future__ import annotations
 from benchmarks.base import Benchmark, ScoreResult, Task
 
 BENCHMARK_NAMES = ["samples", "humaneval", "gsm8k", "judged"]
-AGENT_BENCHMARK_NAMES = ["sample-agent", "swe-bench-lite", "real-scenarios"]
+# Scenario-library suites (P1) are each their own AgentBenchmark.
+_SCENARIO_SUITE_NAMES = ["coding-assistant", "rag-support", "research-agent", "browser-agent"]
+AGENT_BENCHMARK_NAMES = (
+    ["sample-agent", "swe-bench-lite", "real-scenarios"] + _SCENARIO_SUITE_NAMES
+)
 
 
 def get_benchmark(name: str) -> Benchmark:
