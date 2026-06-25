@@ -90,6 +90,21 @@ def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | N
     if make_html and not output_json:
         hp = write_html_report(result.to_dict(), out)
         console.print(f"HTML report: [dim]{hp}[/dim]")
+    _record_history(result, path, out)
+
+
+def _record_history(result, path, out) -> None:
+    """Best-effort: index this run in the historical DB. Never breaks a run."""
+    try:
+        from pathlib import Path
+
+        from history import BenchmarkHistory
+        html = Path(path).with_suffix(".html")
+        with BenchmarkHistory(Path(out) / "history.duckdb") as h:
+            h.record(result.to_dict(), json_path=str(path),
+                     html_path=str(html) if html.exists() else None)
+    except Exception:
+        pass
 
 
 def _render_proof(result, path, output_json: bool) -> None:
@@ -206,6 +221,7 @@ def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int |
     if make_html and not output_json:
         hp = write_html_report(result.to_dict(), out)
         console.print(f"HTML report: [dim]{hp}[/dim]")
+    _record_history(result, path, out)
 
 
 @cli.command("report")
@@ -292,6 +308,7 @@ def cmd_replay(telemetry: str, candidate: str | None, judge_backend: str | None,
     if make_html and not output_json:
         hp = write_html_report(result.to_dict(), out)
         console.print(f"HTML report: [dim]{hp}[/dim]")
+    _record_history(result, path, out)
 
 
 @cli.command("serve")
@@ -309,6 +326,108 @@ def cmd_serve(directory: str, host: str, port: int, open_browser: bool) -> None:
         import webbrowser
         threading.Timer(0.6, lambda: webbrowser.open(f"http://{host}:{port}/")).start()
     serve(directory=directory, host=host, port=port)
+
+
+@cli.group("history")
+def cmd_history() -> None:
+    """Query the historical benchmark database (DuckDB)."""
+
+
+def _default_db(directory: str = "results") -> str:
+    return f"{directory.rstrip('/')}/history.duckdb"
+
+
+@cmd_history.command("ingest")
+@click.option("--dir", "directory", default="results", show_default=True,
+              help="Directory of proof artifacts to index.")
+@click.option("--db", default=None, help="History DB path (default: <dir>/history.duckdb).")
+def cmd_history_ingest(directory: str, db: str | None) -> None:
+    """Index every proof artifact in a directory into the history DB."""
+    from history import BenchmarkHistory
+    db = db or _default_db(directory)
+    with BenchmarkHistory(db) as h:
+        new, total = h.ingest_dir(directory)
+    console.print(f"ingested [bold]{new}[/bold] new / {total} total runs → [dim]{db}[/dim]")
+
+
+@cmd_history.command("list")
+@click.option("--benchmark", default=None, help="Filter to one benchmark.")
+@click.option("--limit", default=20, show_default=True)
+@click.option("--db", default=_default_db(), show_default=True)
+@click.option("--json", "output_json", is_flag=True)
+def cmd_history_list(benchmark: str | None, limit: int, db: str, output_json: bool) -> None:
+    """List recorded benchmark runs, newest first."""
+    import time
+
+    from history import BenchmarkHistory
+    with BenchmarkHistory(db) as h:
+        runs = h.list_runs(benchmark=benchmark, limit=limit)
+    if output_json:
+        console.print_json(data=runs)
+        return
+    if not runs:
+        console.print("[dim]No runs recorded. Run a proof, or `tjbench history ingest`.[/dim]")
+        return
+    table = Table()
+    for col in ("when", "benchmark", "tokenjam", "original → candidate", "n",
+                "cand", "Δcost", "verdict"):
+        table.add_column(col)
+    for r in runs:
+        when = time.strftime("%m-%d %H:%M", time.localtime(r.get("created_at") or 0))
+        table.add_row(
+            when, str(r["benchmark"]), str(r.get("tokenjam_version")),
+            f"{r.get('original_model')} → {r.get('candidate_model')}",
+            str(r.get("n_tasks")), str(r.get("candidate_pass")),
+            f"{r.get('cost_delta_pct'):+.1f}%" if r.get("cost_delta_pct") is not None else "—",
+            str(r.get("verdict")))
+    console.print(table)
+
+
+@cmd_history.command("versions")
+@click.option("--db", default=_default_db(), show_default=True)
+@click.option("--json", "output_json", is_flag=True)
+def cmd_history_versions(db: str, output_json: bool) -> None:
+    """List the TokenJam versions present in history (ascending)."""
+    from history import BenchmarkHistory
+    with BenchmarkHistory(db) as h:
+        versions = h.versions()
+    if output_json:
+        console.print_json(data={"versions": versions})
+    else:
+        console.print("  ".join(versions) if versions else "[dim]no versions recorded[/dim]")
+
+
+@cmd_history.command("trend")
+@click.argument("benchmark")
+@click.option("--original", default=None)
+@click.option("--candidate", default=None)
+@click.option("--db", default=_default_db(), show_default=True)
+@click.option("--json", "output_json", is_flag=True)
+def cmd_history_trend(benchmark: str, original: str | None, candidate: str | None,
+                      db: str, output_json: bool) -> None:
+    """Accuracy + cost trend for a benchmark across TokenJam versions."""
+    from history import BenchmarkHistory
+    with BenchmarkHistory(db) as h:
+        points = h.trend(benchmark, original_model=original, candidate_model=candidate)
+    if output_json:
+        console.print_json(data={"benchmark": benchmark, "trend": points})
+        return
+    if not points:
+        console.print(f"[dim]no recorded runs for '{benchmark}'.[/dim]")
+        return
+    table = Table(title=f"{benchmark} trend")
+    for col in ("tokenjam", "cand pass-rate", "acc Δ", "Δcost", "deepeval", "verdict"):
+        table.add_column(col)
+    for p in points:
+        de = p.get("deepeval_score")
+        table.add_row(
+            str(p.get("tokenjam_version")),
+            f"{(p.get('candidate_pass_rate') or 0) * 100:.0f}%",
+            f"{p.get('accuracy_delta_pp'):+.1f}pp" if p.get("accuracy_delta_pp") is not None else "—",
+            f"{p.get('cost_delta_pct'):+.1f}%" if p.get("cost_delta_pct") is not None else "—",
+            f"{de:.2f}" if de is not None else "—",
+            str(p.get("verdict")))
+    console.print(table)
 
 
 @cli.command("matrix")
