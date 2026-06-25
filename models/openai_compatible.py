@@ -37,6 +37,20 @@ def is_openai_compatible(provider: str) -> bool:
     return provider in PROVIDERS
 
 
+# Mock-only scaffolding lines that benchmarks embed for the offline deterministic
+# clients (e.g. the judged benchmark's `# echo:` carries the gold answer). They
+# MUST be stripped before a prompt reaches a live model, or we'd leak the answer.
+_MOCK_TAGS = (
+    "# task_key:", "# echo:", "# plan:", "# answer:", "# wrong_answer:", "# unsafe_tool:",
+)
+
+
+def strip_mock_directives(text: str) -> str:
+    return "\n".join(
+        ln for ln in text.splitlines() if not ln.lstrip().startswith(_MOCK_TAGS)
+    ).strip()
+
+
 def _make_openai_client(provider: OpenAICompatProvider):
     """Build an OpenAI SDK client for a provider; key read from env, never stored."""
     try:
@@ -79,7 +93,7 @@ class OpenAICompatibleClient:
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
-        messages.append({"role": "user", "content": prompt})
+        messages.append({"role": "user", "content": strip_mock_directives(prompt)})
         resp = client.chat.completions.create(
             model=self.model, messages=messages, max_tokens=max_tokens,
             temperature=temperature,
