@@ -31,3 +31,7 @@ test:
 
 lint:
 	ruff check .
+
+# Continuous-benchmark set: offline always; live if a provider key is exported.
+ci-bench:
+	$(PY) ci_benchmark.py
