@@ -10,6 +10,7 @@ from rich.table import Table
 from agent_pipeline import run_agent_proof
 from benchmarks import AGENT_BENCHMARK_NAMES, BENCHMARK_NAMES
 from pipeline import resolve_candidate, run_proof
+from report_html import load_and_render, write_html_report
 from version import resolve_tokenjam_build
 
 console = Console()
@@ -61,10 +62,12 @@ def cmd_recommend(original: str) -> None:
 @click.option("--max-tokens", type=int, default=1024, show_default=True)
 @click.option("--out", default="results", show_default=True,
               help="Directory for the version-stamped JSON artifact.")
+@click.option("--html", "make_html", is_flag=True,
+              help="Also write a self-contained HTML report next to the JSON.")
 @click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
 def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | None,
             samples: int, temperature: float, mock: bool, mock_candidate_accuracy: float,
-            max_tokens: int, out: str, output_json: bool) -> None:
+            max_tokens: int, out: str, make_html: bool, output_json: bool) -> None:
     """Run an original-vs-candidate proof and write a stamped artifact."""
     try:
         result = run_proof(
@@ -83,6 +86,9 @@ def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | N
 
     path = result.write(out)
     _render_proof(result, path, output_json)
+    if make_html and not output_json:
+        hp = write_html_report(result.to_dict(), out)
+        console.print(f"HTML report: [dim]{hp}[/dim]")
 
 
 def _render_proof(result, path, output_json: bool) -> None:
@@ -178,10 +184,13 @@ def _render_proof(result, path, output_json: bool) -> None:
               help="In --mock mode: simulate the candidate's behavior "
                    "('unsafe' exercises the dangerous-tool safety gate).")
 @click.option("--out", default="results", show_default=True)
+@click.option("--html", "make_html", is_flag=True,
+              help="Also write a self-contained HTML report next to the JSON.")
 @click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
 def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int | None,
               samples: int, temperature: float, max_turns: int, max_tokens: int,
-              mock: bool, candidate_behavior: str, out: str, output_json: bool) -> None:
+              mock: bool, candidate_behavior: str, out: str, make_html: bool,
+              output_json: bool) -> None:
     """Run a multi-turn AGENT proof (tool use + safety), with the same stats."""
     try:
         result = run_agent_proof(
@@ -193,6 +202,23 @@ def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int |
         raise click.ClickException(str(exc)) from exc
     path = result.write(out)
     _render_proof(result, path, output_json)
+    if make_html and not output_json:
+        hp = write_html_report(result.to_dict(), out)
+        console.print(f"HTML report: [dim]{hp}[/dim]")
+
+
+@cli.command("report")
+@click.argument("artifact", type=click.Path(exists=True, dir_okay=False))
+@click.option("--out", default=None,
+              help="Output dir for the HTML (default: next to the JSON).")
+@click.option("--open", "open_browser", is_flag=True, help="Open the report in a browser.")
+def cmd_report(artifact: str, out: str | None, open_browser: bool) -> None:
+    """Render a saved JSON proof artifact into a self-contained HTML report."""
+    path = load_and_render(artifact, out)
+    console.print(f"HTML report: [bold]{path}[/bold]")
+    if open_browser:
+        import webbrowser
+        webbrowser.open(path.as_uri())
 
 
 def _summary_json(result_dict: dict) -> str:  # pragma: no cover - convenience
