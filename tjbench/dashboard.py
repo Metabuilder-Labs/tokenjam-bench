@@ -295,14 +295,14 @@ _DASHBOARD_HTML = r"""<!doctype html><html lang=en data-theme=dark><head><meta c
  --bg:#0a0c10; --bg2:#0e1116; --panel:#12151c; --panel2:#161a22; --line:#222834;
  --line2:#2c333f; --fg:#e6edf3; --mut:#8b94a3; --mut2:#5c6573;
  --acc:#6e9bff; --acc-d:#3b6cf0; --good:#3fb950; --good-d:#1f7a36;
- --warn:#e3a008; --bad:#f0556a; --chip:#1a2030;
+ --warn:#e3a008; --bad:#f0556a; --chip:#1a2030; --active:#262d3a;
  --radius:14px; --shadow:0 1px 0 rgba(255,255,255,.02),0 8px 24px rgba(0,0,0,.28);
 }
 [data-theme=light]{
  --bg:#f5f6f8; --bg2:#eef0f3; --panel:#ffffff; --panel2:#fafbfc; --line:#e4e7ec;
  --line2:#d4d9e0; --fg:#1a1f29; --mut:#5b6472; --mut2:#9aa3b2;
  --acc:#3b6cf0; --acc-d:#2a55cc; --good:#1a7f37; --good-d:#1a7f37;
- --warn:#9a6700; --bad:#cf222e; --chip:#eef1f6;
+ --warn:#9a6700; --bad:#cf222e; --chip:#eef1f6; --active:#e7eaf0;
  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
 }
 *{box-sizing:border-box}
@@ -315,10 +315,9 @@ a{color:inherit;text-decoration:none}
 /* sidebar */
 .side{width:248px;flex:0 0 248px;position:sticky;top:0;height:100vh;display:flex;
  flex-direction:column;background:var(--bg2);border-right:1px solid var(--line);padding:18px 14px}
-.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;font-weight:700;font-size:15px}
-.brand .glyph{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
- background:var(--chip);border:1px solid var(--line2);color:var(--acc)}
-.brand .glyph svg{width:17px;height:17px}
+.brand{display:flex;align-items:center;gap:11px;padding:4px 4px 16px;font-weight:700;font-size:15px}
+.brand .glyph{width:42px;height:42px;flex:0 0 auto;background-image:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAG0AAACECAYAAACas6UcAAAad0lEQVR42u1debRdU5r/fefeF0NGUyhDzFOIIYYIglKFhGpUlUZTXZZei16qtFKt1WDoQg9WKdVKYaH0qtbKUChDmyIRiUQIosyJEjGGRFDIgOS9e8+v/9jfzvvezjnnnnvvuS8vcvdab717z77nnH32d/Y3/r5vC4JGsiwiFZIRgG8B+A6AkQDWB1DWnwkA+lP0O8x/mL7wOM05Yr6H5+W5Ztpvku7NlPNLAGI9Hukf9Vg45rClXZspfUsALATwMIC7ROQ1nfNIRGLkbBIQrCQiVZIHAfglgP3Qbq1qSwDcAOB8EVlWD+EkgWA/BHCV9sXBqmi35ptftSX9/iyA74jIvLyEk4BgJwG4xRCr1J7jlhKvAqADwKvK1ZYCoIgwk2gquwhgMz15Xe2LzMWrbQIW0vwqsnPZpYS7RkTO9AuoFtG84nE5gHOU+uX2/LaceFHALisAdhSRt2uxSU+wdQAcbzQoq/V0ArgSwL0AvkzRototn+6wFYAfATjEEE6Uk/UD8G0AV+jxbNlGcne6FrO7VfXvb9tzXqAgI0skp+hcV3Suu/T7vf43WdfwbHCYWbYlI8OeFZE7SXYY5aTdGm8dIrKc5CUAJpsV6FfcNgBQS6Z5oq2TYpi+RVIAxLUu1G65VlmXzue7RhQxYd4zW1SDB0e11M92q1O4uflsShOPariK4vY0t8xGa5popVZcvN1a06I2kVZfolUDNpnlPW+3PkK0Slq/ajvt1hpjuyUyraOtPRau9kcZiyRX83ba4hS2OEJvEquB3SZgc62kxvXuxn1VSgkW16T+Duqyss27WH7bnutCV9owkq+p26pq5jomOd6sxvSVpjLrTQBzAOxoXFn+DfgnfTPuB/ChhhGI5BB8FGiiccDHJSGoGidcr5YiJAFsoWRcQbG5d9I4wzGXgvuJGbe/fmRCVLE5lhQclgQ4hj9nTwAnAdgwwTkvAB4x8xjnCc2cC+CyhNBMnOE5aTcUFppZCmAHEVlIUrJ0CdGVJnD+x+cA7JBAuGpbnhUn14LV2QkXlvmJiPwqVxDUooFIjgQwDUB/uIhquW2rtXS1VVXcPAjgaM+aa8INEoA9owHcAWDz9irrldV2O4BTdMUhj4mVBqHbBMDPjdBst+LbcwB+LSK36txLXptYkow/j08guRGA0QCGwwF/2q6txr36oqvpJQCzRGSmUe9ZjxMjiWgrkLci0tWe75bZa6I6Q6Ver5MEF4n6SoRacRJl48xGwb6/CEBnX3DT1Tv3ksASywAGqhpqXSxRYBDHxrBFYCgjw4CGwcxLAvbEX/tTtR+lVRNLsj+6cZ5xYKQnYfjFENyOP07IU0jC+8eBwS4AlonIJ4Z4yAVWVXV/cwD/DGAcgKGqikYpRAgJkJSoEBItTH6IUibGq8IfqO3yQL0JCnneagAXAfgHJVoUTGZajFFqjL8W0ZjgEeoC8BqAG0Xk+txKCckDSH7Avte+ILlFHn9cToKV9f8Z7JttPMmBJDNDYpFqiHcA2Fi1m9Bnt6r+OtVL8zc1QEj1NC8zTlGvT6WPPGuszzsWwFXKVVKfNwJwJoBN9QH6JThC41X0xyBsVGTwcbnBd67KZ7Mysp/S4BSSu6m9HKXF08YFHufQqbmqEi9KAN4C8KCyimqBRLscwEEA1uoj9lvYDlV7LtHbXwawdhBKgCHiYgAvA1hmNCskhCTiHNmdSaGOJCHur/cGgEtF5NOiNEj/9orI/SS/BeB0AOulKFWooXSlhWLSiBOb8M4GAHYPQlW2DaklnF802H37f6JqlH3BhmlFyH9VP9dBqvzFJoeiS/9fbBWnpJUWJbw5XwI4XUTeUyM3bdUgJadaCmJlLErVD1ZcbJIc4oT86Fq51c2CeUREppG8CMC1CaEwqYURKSVM+KcAFnh8SA7WRKxC/KR3vdWVbN7T+1Dv8zWFKtbMmZKKgLr9uWmGJNWtEq8u+PjVZazBS9PRyEsSJeA4VhtPvpd3JLcguU2rZGBfw/RHrQBT9rJZAACXwiX44yuCZ4lqdUoKe1zdWgVYMxDI5WYIZJyvSNL0VJFZ4VkJFRqbplpASChuYpy2P2mcmc/RAvbIPAjjJJkmORPkqlmqdR0aHJpESnekPXCOcTb1HL0t68qNLE/voSA5DMDWenieiLwZKALD4DL6CeAZLSfkz40AjFKfmwCYKSKfN+H9YMY4N4KDTADAEhF5LugfAGAv7Z8jIgtsbIvkcAAbaf9rIvJBQV4aaUhBIfmK8YR4y3wByXXTtDET4jjRhBUe86zEsz2S95n+Y/RYP/0/3PR9QnJgvdqfGcctJJ8IvR3+c3CvJSQH6/EO/X+q6b/KX5uk6PPMMv2H5qlAkCMqD5JjAwi+94hclOURiZoMcUwCsEjlyc4kB4lIrD6+gXClg7wn/bDgngcYX9x4EVmiaGc2mUwSej5ERGbDoZ9iAAPU72ff9CONB/5AUxyAyim21b55AGYUzNqLVS2zZIA6Xj8G8KJeZyMAu5if7a7HfLRgTJDmM9rAFR4tgM2UapgF042D9mCvcSprPNBo0rsC2MbIsb3hogERgKki8mUzq6wookmTBH/ETNz+pv+Q4Hc7AthKcR8dSjTARRCmFJCYH9eQD5OMgnWAUTD2ALCJ8cSXfb+2MebzxILtWPY20fwNJ5vPBxu5NBbdWPVOfVv9BOwEYDv9/AqAt5WNxQVEpdOIOR3AJ/p5D5I+/HGYGae/xjeNTBxtAqfTe6nqgxTOHoOBvwQHwvGTEcEBg7zcuBEulQoADlWCjjYy6JECamtYtisprPxTL490fMPtiwbgGQDj/epSFripYfkvi8hbWS+XKi7SG0STJuXaUgAv6OHN9EFHqMAHgN8BeN7LByXQngkshy1kMx4oM9lMykgt5La3HnsYwD36eUtVQIbDBYkB4AmT01cKtVSdC+q8lFqpU0RNhvEjwyL99z0MG/xARF4A8LR+34Hk9mYVzgcw069cVbMjnZSyV7tzrvosluU1wYlwkDXoOPeFyxACgMf0r6JEHa21m33zylJVRKp2tanGHJMcpBpwtckVV5eXv1EW+Yj5fKRhOV4GPGmE/Pf1LQaAJ9SgLulbWvEmg37OC5nODLx61R+uCOkco91+Vz8vUFjFPACv67FxRp59AuAps7LOJjmD5J76fXNNvZ2nccif6YqT3vSI1HvxWQDmakLiyea6Xka8DOBtrbL2A/N2TzHhFQFwmq7K7QEcBVff9zr/QmQQMA+biXQFPK1yahejDM0QkSU6jicB7Kwvn28zReQjkmupFjoSDuQ6xLycS/UlGA3gUpJvaAW/UtE2XTPao5drZRGpmFU1QB+oCpegCBFZZpSA9VSTjAFM0xVWVdlxJYCpcIUs1wNwNYBrlVhRk7U5xKj+0DEMClifNWEGm34rC38Dh+SqAOjUl20WXPHoSSLyb6p4Hd2qMFdUYBhmklGdY32QN40rZorea5n2zwbwqmEhvu95ERkjIsfCwdRPI9k/h5yo5mTlUwF8YY51BkR7Ag4jYzGK04w8uwsOpVb2VfpE5CgRmaPyeIj6XGe0wHwpLGBo7aCKrpgIwKMBUna6ye2OAEzU/rK5Tn+4srveP/e+Tlr/nGXTa4F5RETmK7uO9N5zAbzu/Ywi8p56eXzWzsf6e68slUKxQnJtA4C6X+Xm71XDrLZCpkkByCYB8J7KMK8Z3uffGu1/XbW3nYJ+G3j1ed4eo9gvB6YQdZSjL+mLdTuAr+mxeww6y2fB3KymC9Qv+rlJ/otJhuPp0vMmqFY6sp503EacrFFBhSdB8lg/eT4h0QhhkhxriNIVsALPqiTBaK4UUW9KZS9E5AqSV9v7W2VBRK4h+bvgOWJjm9GYBv77H9W++5rari1rhVYvUHYX1yBuV8ZqGWLyxfz4yhmopWbG2tVEvx+XN7IfU9v0TgA/VSf0FBG5r8E0LWmlyp+KkEpjCxn9Ape9M9scm6PHOnMoVFE9npUGx+k/fwbgbhUJorL3NtU2R+mxOU1oj+VeJVrNLMag339X9nRC0DfdmBJZ15Z6fZf1jjMY6/vGMAeAvysYUhH1KtEKyLOOjYz0CfuVPBDy3s6R9mM1SkzoOotbgSwr95WkCGs+BNfPss+8V72k6riYY+iNfWN8lLsRFtyMys+iWWAvvvH+Ta+q4Ut/rK8hoescU6mVuMfIQsxCfGHCmxOl5MI1Clfzxms1wRarawJN/ZSk8oRIwEKGhQNS42xFv0TlepBPChX4DwD/qKp7P2VHcUKdSCYkGJYytmNcsXoSqh1YLGaPmpEkK3BbX0YkF2q8iymVBjxLTSs1ISl7FNCMK+130OvGgdYYAzhGRJ6uQ/0vzMvvb/YAXKhiufFESMrDM6g5kpYlKimFOqvBuUkrdzlcRudG6nAuB6uvlFDjhKZQW/hSlVLGmfQcSeEhMdeIdXyvFwm3z21c+zdERGY06QxthcwYDVfg8jdAn9+ypBCisQE51lcyU8rGSd2hEYWoD263Uq2TYHGhKn8tV1UvrzConPX2XaXI6j59NW+tYd+jsY96OGNTVmSckKlSbuJNzA2bCMbJ0EMRjLPHOGo9I1YRiLjcDMo4S7XO4TyuFIwTZBqErtFx1jp3VRItbsRQ1JpVP9bzF4rIr4J6yPsBOA7dMasnLF6C5I/hIHcRgKs146ZR1lYJWYoZx15wFWIJ4A0RudbYWIQDph6hp/2PiMwyFWYHAThP52k5gP9sMrOnMLkwq56sGZOJMjQoxrUpembF/MH0/RE9s1Q2DDZvGNZIfY8ga2ZqkJHi/48091lknsv3Tzb9v9Bja+n/Q0zfa7UKjTWQNTMuJWvm4lpZM6V6Qgg+GCgiH8JFarvU5tnbJDWU9bsPYI4mubZhNbuaQOIjIvJukwpElOBZ8T7L5/WvAgd12Mn0rw8Xae7S/jGBInCAHu8CcJeOr7Sq03cbRWP5N26aBihLcJknXkbsqnA6f/1hAEYalnKAwWBMLQCvkoZ7LOk9nzDB1FGmfxQc6ssb1nuR3MAEaseY86b2Yj56brBqXXaETsYDxvMwxrC3Q01gsmSTGtAzo4bohqexBURjAIuDf7nMmKhEEbjI+T4qs9fTVQgAf0U3Sro3zIm4cAidAfPMNi6aEaaiuEcYv24i0T6jZgMDt34X3Tj/uEl2IhkPPwMu+REA9vMyS1eS3w33Iz12uD7bznCJGgDwtIh85pHQfWGlSRPbSlXQjRnsD2A3FbL76bGHTFLDnprwsIM6eAGHo1hWwGQkEs0kiXwEl90DOJTzNrqSfObMtQAe91xAxzISKwNcpa/UEWGTb8Mkc2w3OAjdUJPUMAHdyOJdgqSGiWEBbE2+SNwvoIbmVgsyPsUcG6Fytb+ed5fxp44gORQuOcOjtR4zuEcJs2aCMZYKqHLXsjoilvV8pvJgL9O/DC7nazFcVGB9lXUjtH+JEe5xmPdl7Kw85c+ZIxN0IoB/1c/7G1n7roi8rhh/PydjlSNAi469YqrH+cLYYZX1KGn8DbLBuCVuLMN6FpJ8HsDXlWjD0J10sUB/N1MN2JPhyscDwAsiMj8wuHeHg9DNEpHFxoitktwMwGKfKFGHDPAT8Ge4JJCt0I2zh2HvPjlyEwBnAdjCyLMukh36fwO4VORPReRV43CItT7XJgDmi8jbrTLCoyb5dGTw8dAH3cdPhhnwNMM+t9LPjxvzoR/Je3TV3g/gDZIHmTJ7F8NB0o5IMTpTEzQ88EaTQDyyayt01z+ZoL9bpISFvnwbWraqBDsWLrniXgAvkLzRy2OSF2r+wj06/p/kSDCURrXHIrSch4PApT1m5UnVDGiKAYWeD+BYJeqWSrxbdHwPwwU5UQO0Kjn6JhsYN+ESMaZi5YwZj3Re7sepJTbuAfC/yk0Ogas6Po7kdgAugYPVbQngAgC/JLl9VgHpIrQUaUKuPQ9XJNoT8UO4uh0w/fPM94+hGaAqsyYAGCMic0Xkc7g87c3h4Aw3qLG+JAGukFbZNW2c05QQ3u/4Z2XvZcMqK+ac5zyb0+8nADhPRJZpMPgNtfsWwUEKHtIVfYNeY/MG51ZanZ9WEpFOZT0+XP+4FnMpKbZkGVyCoO+fISKLTAbokyIy3fst4TAoL+iWHnfAJewNyngoyXpgo9C8pXLN7+4xOYDivaqE8Fu2PGbMm891LF/4GsRwRWEeFpGPFALu7b+f6Us2Mwtil5Ht03KEsR/QL+AyYbqMTWQH+3M4iPdK/cr3O9RmuwTA4T6ZXvvWKqLcvBLveyrPvjBejorxR56o/TT9XlFaS7c83kLZ9k0i8piOsZ8WhjkZwDkAjhWRpTUyQb0nplKXV4jkq/XWxmoRshgkL9D7jwu8+OuQXKoTYo/7/zeRnN5szao8cEGS25L8jOTdapd1mHEcr+P/+ywvvbnWzvpcdpvqLn1xM6uFF/lQK+rtp9R+XKlfzYYqyTPh4nOjROSZhEBpl8qjtDcyVwJGMI5ctR2DTZQmaHzw1IBbHAfgegBHichDWYFek+D4qibbHw23PcsodO+TkGulxb290swb+iO978ckJ5CcqdUDttP+9bX/+xkr7alW1Nz3BV1IrkvyfR3HMySf03GeQXIvPd6pm/zMIPm0boybOqaEWOVwkueS3Dpr7st9YAda71i+QHl8fwN89bnRn2sE+dkUO4athr4pWPVKVVIGGdvwLY0CXKhjHqxcoQRgsffoBLnlNIVi/MqvarW82TUhd/VGrtG38I5+pf13GLlG3690HvliNwnHpNcyQQuQh0jDCyqB0lBb6wcmQUtfkgRuQV2BVPPH7oQ4ULXRkq7AeeoC+zLIvPH+1bienGtZhcjbmljKFKHuz7kO3bW42MJxVjKSUJYb/+k4uFoju6ojfaA5ZSmAv5J8Rb0t45UtVnPv5NEXVH6svjvolsznY0g+YubQtjiYX9u6SE4i+d2k635liWbrJvdWvpmxtfYh+WgCIfL+2TZFoYfZ8UOSf1lVKv/quj+1qed1npn4iv5VE4iR1rr09xUDo6toxCC1fmS5vUN8Q2nLEclbARxv0qYiU6/ZJzvOhQvlzDWIrx01ErCtMbmq5hwBcInG5k7TAHFP9V9BmO2Vlm+F+TqU9xhj2oJNPaj1XHVRpbmx+pEcQfJCkm+Zc72I8td90MMXetChzR7r9o/emUKwD0ieqeClJHusHNpl2j+Y5PkkFwfX89e/cSVzo020ugj20xSCTfH7cZuNGFIVCbNJQ9kc28VsbBES7uweWmVb5a9NMJ3kPYzSEJuJvdlokuV650uv3WF8rE8bwvn7fElyhxVaK8nZbaLlCslMNpPpk0emGYdy1ISsLJvElaEk5xqa+Jdj/IrxtImWiy1+IyBYVT3+Q5slWKig6P/dSC4zNPGEG/NV2dWvN9pZ4X6pAC7QzKFSI9k+viQ8yQEkTyK5h4h0kuwnIi8BuMyYER6WcFYtL3//NXmlGbY4jOQXwRv/F41YR02u4PVIPqXXXKYQPS9HB5P8MNh7fBHJzaKsOvdruDyLTMn6dYI6JNcr9C9qhGAmN24CXLR6ORwO5vdaAzlWHOatQQ2TQQDGpgVBBwBY2+9glFD+9SvXElgcE9KyynDhlf9LCsaqCs80II8h2MZwpYP3RM+NyT/S60cadP0TXOX0yLDIb4Ts0doIt/nN4dZw7fGlwGZ6IckGs99TkjM8S9yY5IvG92iN812C3w4kuTCgy4tJvkdf2+pEuETBd76q9EB3WfnzRGSmTfpQJWEQureVhNlG0xeqrvrf6u9Phcs3uCvIUfArbBO4RJARpgZyCS6H4DBN0vdAJ1Hs6NvozkICgC3LcKDKJMRuDJckuNkasKCegUM8R6b+FeHw/EODIPF74aa3usqugtvdAyT/RUR+7T0eWpRmmLLE4cYx7An2TSVY2QRavQP5Dbi0K0+jwWW4cuf7Gk9zmNr7VZZnXp58kQMBTLPvTFiZ7zgl2HIlxOW6ui7zWEm4PIGtE1ZYEsHsS/FROKYy3FZZp8OFDDqDcE2urZNX41aqoQHakoh+HrbHyrCGz9AzQaQKl4CxDoA/KEvcOlhhCwxLLCdAGbySs224sv3+ZyfAYdz7GXz/mvDnJ2PdFM1xodnQzx8bYks2qQyaBOCMYO4I4CK43TS2MUQoKYv9egbB7P02DY7PL+tNX9TKNucA+Dbc7hCDDH9PwhdGKeWNmFLoMqngZnheUmHPrIqnkoKMYkJdRiawnggOUznT/sZvo6W5Be/D5d35c3YymH6fTFgSketILtKVZdOiB5gxleCS8g8XkdfSCBbsz7110D1XktJQVWMakgEKlTp2WWJCim1SMU+myJI0AifdJ41oTChfESk7Wyoi8zIqyV6jq6hqXtRRcMDZyGiIHSbx8E+GcD5nrwyXGDlOS0qlrbAVVdPVsH8gKDh66Ure5jUcRpBkVx0XJEeQ5H8l4SBNiOUYE1pZpufM0lyAmmgrc++bjD3nXYyHScYDrDEurCSHr2FRG8LB1ocYcfGpKiSfheebFXcMXGpXP7ikyiNF5INam+D5jYjgsk1fQU+Y/DumjEa71Xjjb0zwYPw2DXUcFFM72XuW8sD8DNT99rQV3m75PP17JkStqyQPzCBcVO8GFIa9nhhErz0sb8c2VepbbbcF8iUmOU81vFTC5YUgmADovhoKCgOgV69OCSZ9Ab0sJLckuSR4+0nyecUoIgltlROD4l+M/UnONw58T7j3NfYWtYFW9a+2k4Jimp5wH/oApiVEWjQgJc3pNAXw2IC0v88R7VXWXC7cJRlA1ZtJ7pyRTZqkrR+goFSmEOzsrPzrdsuBMNbPVyTIt9jABu4m+T2S2+uuhfY6QxRd/IMgcaOSkF1zfptgxRAuXHGWeJUgwaKT5HuKA3lKc7Q/TEiDqgSrq0Lyh22CtWbFnaAgqKwsmKyMmaQsmzkkD24TrLXKyaYkrzMyzq6eijGOuwyhkoj6Ccl/r8cQb7fmM0F3IXklyXdYX5uleW6b5c0Ebev8Be0Parz9gwGMhqvZvB9cxGQ99fp3qr/ybbhw0DQAz2jtsFrFAFa0/wdCU904uU5thQAAAABJRU5ErkJggg==");background-size:contain;background-repeat:no-repeat;background-position:center}
+[data-theme=light] .brand .glyph{filter:invert(1)}
 .brand small{display:block;color:var(--mut);font-weight:500;font-size:11px;letter-spacing:.04em}
 .nav{display:flex;flex-direction:column;gap:1px;overflow:auto;margin-top:2px}
 .navsec{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
@@ -329,8 +328,8 @@ a{color:inherit;text-decoration:none}
 .nav a .ic svg{width:18px;height:18px}
 .nav a:hover{background:var(--panel);color:var(--fg)}
 .nav a:hover .ic{color:var(--fg)}
-.nav a.active{background:var(--acc-d);color:#fff;font-weight:600;box-shadow:0 4px 14px color-mix(in srgb,var(--acc-d) 30%,transparent)}
-.nav a.active .ic{color:#fff}
+.nav a.active{background:var(--active);color:var(--fg);font-weight:600}
+.nav a.active .ic{color:var(--fg)}
 .side-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);
  display:flex;flex-direction:column;gap:8px}
 .connpill{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
@@ -345,9 +344,8 @@ a{color:inherit;text-decoration:none}
 /* main */
 .main{flex:1;min-width:0;display:flex;flex-direction:column;background:
  radial-gradient(1200px 600px at 70% -10%,rgba(110,155,255,.05),transparent 60%)}
-.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
- padding:18px 28px;background:color-mix(in srgb,var(--bg) 86%,transparent);
- backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;
+ padding:18px 28px;background:var(--bg);border-bottom:1px solid var(--line)}
 .top h1{font-size:19px;margin:0;font-weight:650;letter-spacing:-.01em}
 .chip{font-size:11.5px;color:var(--mut);background:var(--chip);border:1px solid var(--line2);
  border-radius:999px;padding:3px 10px;font-weight:550}
@@ -396,6 +394,34 @@ select:focus,input.in:focus,button:focus{outline:none;border-color:var(--acc)}
 .banner.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
 .banner.bad .bi{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
 .banner b{font-weight:650}.banner .bsub{color:var(--mut);font-size:12.5px}
+/* executive recommendation hero */
+.hero{display:grid;grid-template-columns:1fr 300px;gap:26px;background:var(--panel);
+ border:1px solid var(--line);border-radius:18px;padding:24px 26px;margin-bottom:22px;
+ box-shadow:var(--shadow);position:relative;overflow:hidden}
+.hero::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px}
+.hero.good::before{background:var(--good)}.hero.bad::before{background:var(--bad)}
+.hero.warn::before{background:var(--warn)}.hero.mut::before{background:var(--mut2)}
+.hero-tag{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mut2);font-weight:700}
+.hero-row{display:flex;align-items:center;gap:16px;margin:11px 0 9px;flex-wrap:wrap}
+.hd{font-size:22px;font-weight:800;letter-spacing:-.01em;padding:6px 16px;border-radius:12px;white-space:nowrap}
+.hd.good{color:var(--good);background:color-mix(in srgb,var(--good) 13%,transparent)}
+.hd.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,transparent)}
+.hd.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent)}
+.hd.mut{color:var(--mut);background:var(--chip)}
+.hero-migr{font-size:16px;display:flex;align-items:center;gap:10px}
+.hero-migr .harrow{color:var(--mut2)}.hero-migr .mono:last-child{color:var(--acc);font-weight:600}
+.hero-reason{color:var(--mut);font-size:13px;margin-bottom:18px}
+.hero-kpis{display:flex;gap:32px;flex-wrap:wrap}
+.hk{cursor:default}.hk-v{font-size:24px;font-weight:750;letter-spacing:-.02em}
+.hk-l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.hero-side{border-left:1px solid var(--line);padding-left:26px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.evchk{width:100%;display:flex;flex-direction:column;gap:8px}
+.evrow{display:flex;align-items:center;gap:9px;font-size:12.5px}
+.evrow .ev-ic{width:16px;height:16px;display:grid;place-items:center;flex:0 0 auto}
+.evrow .ev-ic svg{width:15px;height:15px}
+.evrow .ev-l{flex:1;color:var(--fg)}.evrow .ev-v{color:var(--mut);font-variant-numeric:tabular-nums}
+.ev-ok .ev-ic{color:var(--good)}.ev-bad .ev-ic{color:var(--bad)}.ev-warn .ev-ic{color:var(--warn)}.ev-mut{color:var(--mut2)}
+@media(max-width:900px){.hero{grid-template-columns:1fr}.hero-side{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:18px}}
 /* badges */
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
  padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
@@ -464,7 +490,7 @@ button.lnk.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)
 </style></head><body>
 <div class=app>
  <aside class=side>
-  <div class=brand><span class=glyph><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6" /><path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3" /><path d="M7 14h10" /></svg></span><div>TokenJam Bench<small>Benchmark &amp; Evaluation</small></div></div>
+  <div class=brand><span class=glyph></span><div>TokenJam Bench<small>Benchmark &amp; Evaluation</small></div></div>
   <nav class=nav id=nav></nav>
   <div class=side-foot>
    <div class=connpill><span class=cdot></span><span>Local &middot; serving results/</span></div>
@@ -633,6 +659,72 @@ const SCEN=new Set(["coding-assistant","rag-support","research-agent","browser-a
 const CAT={humaneval:"Executable",gsm8k:"Executable","swe-bench-lite":"Executable",samples:"Executable",
  replay:"Replay",judged:"LLM-judged"};
 function catOf(b){if(SCEN.has(b))return"Scenarios";return CAT[b]||"Other";}
+const EXEC=new Set(["humaneval","gsm8k","swe-bench-lite","mbpp","samples"]);
+// ---- decision-support derivations (all honest: computed from real verdicts) -
+function configKey(r){return r.original_model+" → "+r.candidate_model;}
+function pickRecommendation(runs){
+ if(!runs.length)return null;
+ const by={};runs.forEach(r=>{(by[configKey(r)]=by[configKey(r)]||[]).push(r);});
+ let best=null;
+ Object.entries(by).forEach(([k,rs])=>{
+  const clean=!rs.some(r=>BAD.has(r.verdict));        // prefer regression-free configs
+  const n=rs.reduce((a,r)=>a+(r.n_tasks||0),0);
+  const score=(clean?1e9:0)+rs.length*1000+n;          // most evidence, cleared first
+  if(!best||score>best.score)best={runs:rs,score,original:rs[0].original_model,candidate:rs[0].candidate_model};
+ });
+ return best;
+}
+function stageGroup(rs,pred){const g=rs.filter(pred);if(!g.length)return null;
+ const concl=g.some(r=>GOOD.has(r.verdict)),bad=g.some(r=>BAD.has(r.verdict)),warn=g.some(r=>WARN.has(r.verdict));
+ return {n:g.length,tasks:g.reduce((a,r)=>a+(r.n_tasks||0),0),pass:avg(g.map(r=>r.candidate_pass_rate)),
+  status:bad?"fail":(warn?"warn":(concl?"pass":"none"))};}
+function recommendation(rs){
+ const v=rs.map(r=>r.verdict);
+ if(v.some(x=>BAD.has(x)))return{state:"HOLD",cls:"bad",reason:"a benchmark shows a statistically significant regression"};
+ if(!v.some(x=>GOOD.has(x)))return{state:"INSUFFICIENT EVIDENCE",cls:"mut",reason:"not enough paired observations for a significant verdict yet"};
+ if(v.some(x=>WARN.has(x)))return{state:"REVIEW",cls:"warn",reason:"a configuration is flagged for review"};
+ return{state:"CLEARED",cls:"good",reason:"no significant regression across the measured benchmarks"};}
+function evrow(label,st){
+ const s=(st&&st.status)||"none";
+ const cls={pass:"ev-ok",fail:"ev-bad",warn:"ev-warn",none:"ev-mut"}[s];
+ const ic={pass:BI.ok,fail:BI.warn,warn:BI.warn,none:""}[s];
+ const val=s==="none"?"no data":(st.label||(st.pass!=null?Math.round(st.pass)+"%":(st.n?st.n+" runs":"ok")));
+ return `<div class="evrow ${cls}"><span class=ev-ic>${ic||"—"}</span><span class=ev-l>${esc(label)}</span><span class=ev-v>${esc(val)}</span></div>`;}
+function heroCard(runs){
+ const rec=pickRecommendation(runs);if(!rec)return"";
+ const rrs=rec.runs,dec=recommendation(rrs);
+ const exec=stageGroup(rrs,r=>EXEC.has(r.benchmark)),scen=stageGroup(rrs,r=>SCEN.has(r.benchmark));
+ const rep=stageGroup(rrs,r=>r.benchmark==="replay"),jud=stageGroup(rrs,r=>r.benchmark==="judged");
+ const noReg=!rrs.some(r=>BAD.has(r.verdict));
+ const cfgSave=avg(rrs.map(r=>-r.cost_delta_pct)),cfgAcc=avg(rrs.map(r=>r.accuracy_delta_pp));
+ const totalN=rrs.reduce((a,r)=>a+(r.n_tasks||0),0);
+ const ps=rrs.map(r=>r.mcnemar_p).filter(x=>x!=null),minP=ps.length?Math.min(...ps):null;
+ const evid=Math.min(1,totalN/600);
+ const kpi=(v,l,t)=>`<div class=hk title="${esc(t||'')}"><div class=hk-v>${v}</div><div class=hk-l>${esc(l)}</div></div>`;
+ return `<div class="hero ${dec.cls}">
+   <div class=hero-main>
+    <div class=hero-tag>Executive recommendation</div>
+    <div class=hero-row><span class="hd ${dec.cls}">${dec.state}</span>
+     <span class=hero-migr><span class=mono>${esc(modelOf(rec.original))}</span><span class=harrow>→</span><span class=mono>${esc(modelOf(rec.candidate))}</span></span></div>
+    <div class=hero-reason>${esc(dec.reason)} · <b>n=${totalN}</b>${minP!=null?` · McNemar p${minP<0.001?"&lt;0.001":"="+minP.toFixed(3)}`:""} across ${rrs.length} benchmark${rrs.length===1?"":"s"}</div>
+    <div class=hero-kpis>
+     ${kpi(cfgSave==null?"—":"−"+Math.round(cfgSave)+"%","Expected savings","measured token cost, candidate vs original")}
+     ${kpi(cfgAcc==null?"—":pp(cfgAcc),"Accuracy Δ","mean pass-rate delta across benchmarks")}
+     ${kpi(rep&&rep.pass!=null?Math.round(rep.pass)+"%":"—","Replay pass","equivalence on historical traffic")}
+     ${kpi(scen&&scen.pass!=null?Math.round(scen.pass)+"%":"—","Scenario pass","agentic suites incl. safety gate")}
+     ${kpi(jud&&jud.pass!=null?Math.round(jud.pass)+"%":"—","Judge score","DeepEval LLM-judge pass-rate")}
+    </div>
+   </div>
+   <div class=hero-side>
+    <div class=hero-gauge title="evidence strength = sample coverage (n vs target). Not a probability — see CI + p-value.">${donut(evid,"evidence")}</div>
+    <div class=evchk>
+     ${evrow("Executable benchmarks",exec)}
+     ${evrow("Scenario suites",scen)}
+     ${evrow("Replay validation",rep)}
+     ${evrow("LLM judge",jud)}
+     ${evrow("No regression",noReg?{status:"pass",label:"clear"}:{status:"fail",label:"regression"})}
+    </div>
+   </div></div>`;}
 // =================== PAGES ==================================================
 async function pgOverview(){
  const runs=await loadRuns();
@@ -676,17 +768,22 @@ async function pgOverview(){
    <div class=tl-body><div class=t1>${esc(r.benchmark)} ${r.mock?'<span class=tag>mock</span>':''}</div>
    <div class=t2><span class=mono>${esc(modelOf(r.original_model))} → ${esc(modelOf(r.candidate_model))}</span> &middot; ${badge(r.verdict)} &middot; saved ${saved(r.cost_delta_pct)}</div></div>
    <div class=tl-time>${ago(r.created_at)}</div></div>`).join("")||'<div class=empty>no runs</div>';
- M().innerHTML=`<p class=lead>The trust layer for TokenJam. Each row below is an executable benchmark with measured cost and a hedged statistical verdict — never a bare "safe".</p>
+ M().innerHTML=`${heroCard(runs)}<p class=lead>The trust layer for TokenJam — every figure below is a measured benchmark with a hedged statistical verdict, never a bare "safe".</p>
   <div class="grid g5">${cards}</div>
   <div class=sect>Overall recommendation status</div>${banner}
-  <div class="grid g2" style="margin-top:18px;align-items:start">
-   <div class=chart><h3>Accuracy &amp; cost-saved trend</h3><p class=ch-sub>candidate pass-rate and % cost saved, oldest → newest</p>
+  <div class=chart style="margin-top:18px"><h3>Accuracy &amp; cost-saved trend</h3><p class=ch-sub>candidate pass-rate and % cost saved across ${runs.length} runs, oldest → newest</p>
     <div id=chartbox></div>
     <div class=legend><span><i style="background:var(--acc)"></i>candidate accuracy</span><span><i style="background:var(--good)"></i>cost saved</span></div></div>
-   <div class=card><div class=sect style="margin:0 0 4px">Recent benchmark timeline</div><div class=tl>${tl}</div></div>
+  <div class="grid g2" style="margin-top:16px;align-items:start">
+   <div class=chart><h3>Cost saved by benchmark</h3><p class=ch-sub>mean % token cost saved per family</p><div id=ovbar></div></div>
+   <div class=card><div class=sect style="margin:0 0 6px">Recent benchmark timeline</div><div class=tl>${tl}</div></div>
   </div>
   <div class=sect>Latest benchmark runs</div><div id=ovtbl></div>`;
  drawChart("chartbox",runs.slice().reverse().map(r=>({a:r.candidate_pass_rate,c:Math.max(0,-r.cost_delta_pct),x:fmtTime(r.created_at).split(",")[0]})));
+ {const byB={};runs.forEach(r=>{(byB[r.benchmark]=byB[r.benchmark]||[]).push(-r.cost_delta_pct);});
+  const _ab={"swe-bench-lite":"swe-lite","coding-assistant":"coding","research-agent":"research","browser-agent":"browser","rag-support":"rag"};
+  const bars=Object.entries(byB).map(([k,v])=>({label:_ab[k]||k,value:Math.max(0,avg(v)||0),color:"var(--good)"})).sort((a,b)=>b.value-a.value);
+  barChart("ovbar",bars);}
  table("ovtbl",[
   {key:"created_at",label:"Date",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
   {key:"benchmark",label:"Benchmark",html:r=>esc(r.benchmark)+(r.mock?' <span class=tag>mock</span>':'')},
@@ -712,8 +809,8 @@ async function pgBenchmarks(){
    const ci=(latest.wilson_low==null)?"—":`${pct(latest.wilson_low)} – ${pct(latest.wilson_high)}`;
    const mc=(latest.mcnemar_b==null)?"—":`b=${latest.mcnemar_b} / c=${latest.mcnemar_c}${latest.mcnemar_p==null?"":" · p="+Number(latest.mcnemar_p).toFixed(3)}`;
    html+=`<div class="card hov">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-     <div style="font-weight:650;font-size:15px">${esc(b)}</div>${badge(latest.verdict)}</div>
+    <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+     <div style="font-weight:650;font-size:15px;white-space:nowrap">${esc(b)}</div>${badge(latest.verdict)}</div>
     <div class=muted style="font-size:12px;margin-top:2px">${rs.length} run${rs.length===1?"":"s"} &middot; latest ${ago(latest.created_at)}</div>
     <div class="grid g2" style="gap:10px;margin-top:14px">
      <div><div class=lbl style="color:var(--mut);font-size:11px">PASS RATE</div><div style="font-size:18px;font-weight:700">${latest.candidate_pass_rate}%</div></div>
@@ -743,8 +840,8 @@ async function pgScenarios(){
   const m=meta[name]||[name,""];
   const rs=(by[name]||[]);const latest=rs[0];
   html+=`<div class="card hov">
-   <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-    <div style="font-weight:650;font-size:15px">${esc(m[0])}</div>
+   <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+    <div style="font-weight:650;font-size:15px;white-space:nowrap">${esc(m[0])}</div>
     ${latest?badge(latest.verdict):'<span class="badge b-mut">no runs</span>'}</div>
    <div class=muted style="font-size:12px;margin-top:3px">${m[1]}</div>
    <div class="grid g2" style="gap:10px;margin-top:14px">
@@ -885,7 +982,7 @@ async function pgProviders(){
   const g=groups[k]||(k==="google"&&groups["gemini"])||(k==="gemini"&&groups["google"]);
   const has=g&&g.models;
   cards+=`<div class="card hov"><div style="display:flex;justify-content:space-between;align-items:center">
-    <div style="font-weight:650;font-size:15px">${esc(label)}</div>${has?'<span class="badge b-good">tested</span>':'<span class="badge b-mut">not tested</span>'}</div>
+    <div style="font-weight:650;font-size:15px;white-space:nowrap">${esc(label)}</div>${has?'<span class="badge b-good">tested</span>':'<span class="badge b-mut">not tested</span>'}</div>
    <div class="grid g2" style="gap:10px;margin-top:14px">
     <div><div style="color:var(--mut);font-size:11px">MODELS</div><div style="font-size:18px;font-weight:700">${has?g.models:"—"}</div></div>
     <div><div style="color:var(--mut);font-size:11px">RUNS</div><div style="font-size:18px;font-weight:700">${has?g.runs:"—"}</div></div>
