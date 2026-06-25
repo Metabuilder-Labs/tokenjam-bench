@@ -1,12 +1,16 @@
-"""Live proof dashboard — the bench's answer to TokenJam Lens.
+"""Bench & Evaluation platform — the bench's answer to TokenJam Lens.
 
-`tjbench serve` starts a local, offline, auto-refreshing web dashboard over the
-version-stamped proof artifacts in `results/`. It lists every run (accuracy,
-cost delta, McNemar verdict, TokenJam version), surfaces the cross-version
-regression matrix, and renders each run's full HTML report on demand.
+`tjbench serve` starts a local, offline, auto-refreshing dashboard over the
+version-stamped proof artifacts in `results/`. It is NOT an observability tool:
+every page answers one question — *can I trust TokenJam's recommendations?* —
+with executable benchmarks, statistical validation, and evidence.
 
-Phase 4 adds analytics views backed by the historical DB (read-only):
-leaderboards, provider matrix, version history, regression timeline, and trends.
+Backend contract is unchanged. The SPA reuses the existing read-only endpoints
+(`/api/runs`, `/api/matrix`, `/api/history`, `/api/leaderboard`, `/api/providers`,
+`/api/version-summary`, `/api/regressions`, `/api/configs`, `/api/trend`,
+`/report/<file>`) plus three additive read-only routes used only by the new
+pages: `/api/scenarios` (suite catalog), `/raw/<file>` (artifact JSON +
+download), and a guarded `DELETE /api/report/<file>`.
 
 Offline-first (like TokenJam Lens): one self-contained page, inline CSS/JS, no
 external HTTP, stdlib `http.server` only — no new dependencies.
@@ -22,8 +26,21 @@ from tjbench.matrix import build_series, series_to_dict
 from tjbench.report_html import render_html_from_dict
 
 
+def _pair(seq, i):
+    """Safe index into a [low, high] list that may be missing/short."""
+    try:
+        return seq[i]
+    except (TypeError, IndexError, KeyError):
+        return None
+
+
 def scan_runs(directory: str | Path) -> list[dict[str, Any]]:
-    """Summarize every proof artifact in `directory`, newest first."""
+    """Summarize every proof artifact in `directory`, newest first.
+
+    Carries the statistical block that already lives in each artifact (Wilson
+    CIs, McNemar counts, measured costs) so the UI can render evidence-rich
+    cards without any new query path or backend change.
+    """
     runs: list[dict[str, Any]] = []
     for p in sorted(Path(directory).glob("*.json")):
         try:
@@ -33,23 +50,67 @@ def scan_runs(directory: str | Path) -> list[dict[str, Any]]:
         if "tokenjam_version" not in d or "benchmark" not in d:
             continue
         s = d.get("stats", {}) or {}
+        cand_ci = s.get("candidate_ci_pp") or []
+        delta_ci = s.get("delta_ci_pp") or []
         runs.append({
             "file": p.name,
             "benchmark": d.get("benchmark", "?"),
             "original_model": d.get("original_model", "?"),
             "candidate_model": d.get("candidate_model", "?"),
+            "recommended_by": d.get("recommended_by", ""),
             "tokenjam_version": d.get("tokenjam_version", "?"),
             "n_tasks": d.get("n_tasks", 0),
+            "original_pass": d.get("original_pass"),
+            "candidate_pass": d.get("candidate_pass"),
             "original_pass_rate": round(d.get("original_pass_rate", 0.0) * 100, 1),
             "candidate_pass_rate": round(d.get("candidate_pass_rate", 0.0) * 100, 1),
             "accuracy_delta_pp": d.get("accuracy_delta_pp", 0.0),
             "cost_delta_pct": d.get("cost_delta_pct", 0.0),
+            "original_cost_usd": d.get("original_cost_usd"),
+            "candidate_cost_usd": d.get("candidate_cost_usd"),
+            "output_token_inflation": d.get("output_token_inflation"),
+            "regressions": d.get("regressions"),
+            "priced_with_defaults": d.get("priced_with_defaults", False),
+            "samples_per_task": s.get("samples_per_task"),
+            "wilson_low": _pair(cand_ci, 0),
+            "wilson_high": _pair(cand_ci, 1),
+            "delta_low": _pair(delta_ci, 0),
+            "delta_high": _pair(delta_ci, 1),
+            "mcnemar_b": s.get("mcnemar_b"),
+            "mcnemar_c": s.get("mcnemar_c"),
+            "mcnemar_p": s.get("mcnemar_p_value"),
+            "significant": s.get("significant"),
             "verdict": s.get("verdict", "?"),
             "mock": d.get("mock", False),
             "created_at": d.get("created_at", 0.0),
         })
     runs.sort(key=lambda r: r["created_at"], reverse=True)
     return runs
+
+
+def scenario_catalog() -> list[dict[str, Any]]:
+    """Read-only catalog of registered scenario suites (name + task count).
+
+    Lets the Scenario Library page list every suite — even ones with no runs
+    yet — without guessing counts client-side. Purely structural; no stats.
+    """
+    out: list[dict[str, Any]] = []
+    try:
+        from tjbench.benchmarks.scenario_suites import SCENARIO_SUITES
+    except Exception:
+        return out
+    for name, factory in SCENARIO_SUITES.items():
+        try:
+            suite = factory()
+            n_tasks = len(suite.tasks())
+            try:
+                n_tools = len(suite.tools())
+            except Exception:
+                n_tools = None
+            out.append({"name": name, "n_tasks": n_tasks, "n_tools": n_tools})
+        except Exception:
+            out.append({"name": name, "n_tasks": None, "n_tools": None})
+    return out
 
 
 def _hist_ro(db_path, fn, default):
@@ -108,9 +169,12 @@ def serve(directory: str | Path = "results", host: str = "127.0.0.1",
         def log_message(self, *args):  # quiet
             return
 
-        def _send(self, body: bytes, ctype: str, status: int = 200) -> None:
+        def _send(self, body: bytes, ctype: str, status: int = 200,
+                  extra: dict | None = None) -> None:
             self.send_response(status)
             self.send_header("Content-Type", ctype)
+            for k, v in (extra or {}).items():
+                self.send_header(k, v)
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -121,6 +185,9 @@ def serve(directory: str | Path = "results", host: str = "127.0.0.1",
                 self._send(_DASHBOARD_HTML.encode(), "text/html; charset=utf-8")
             elif path == "/api/runs":
                 self._send(json.dumps(scan_runs(root)).encode(), "application/json")
+            elif path == "/api/scenarios":
+                self._send(json.dumps({"rows": scenario_catalog()}).encode(),
+                           "application/json")
             elif path == "/api/matrix":
                 payload = series_to_dict(build_series([
                     json.loads((root / r["file"]).read_text()) for r in scan_runs(root)
@@ -129,6 +196,8 @@ def serve(directory: str | Path = "results", host: str = "127.0.0.1",
             elif path == "/api/history":
                 self._send(json.dumps(history_summary(root / "history.duckdb")).encode(),
                            "application/json")
+            elif path.startswith("/raw/"):
+                self._serve_raw(path)
             elif path.startswith("/api/"):
                 self._send(json.dumps(self._analytics(path)).encode(), "application/json")
             elif path.startswith("/report/"):
@@ -146,6 +215,40 @@ def serve(directory: str | Path = "results", host: str = "127.0.0.1",
                     self._send(b"not found", "text/plain", 404)
             else:
                 self._send(b"not found", "text/plain", 404)
+
+        def do_DELETE(self) -> None:  # noqa: N802
+            path = self.path.split("?", 1)[0]
+            if path.startswith("/api/report/"):
+                name = Path(path[len("/api/report/"):]).name
+                target = root / name
+                if name.endswith(".json") and target.is_file():
+                    try:
+                        target.unlink()
+                        self._send(json.dumps({"deleted": name}).encode(),
+                                   "application/json")
+                    except OSError:
+                        self._send(b"delete failed", "text/plain", 500)
+                else:
+                    self._send(b"not found", "text/plain", 404)
+            else:
+                self._send(b"not found", "text/plain", 404)
+
+        def _serve_raw(self, path: str) -> None:
+            from urllib.parse import parse_qs, urlparse
+            name = Path(path[len("/raw/"):]).name
+            target = root / name
+            if not (name.endswith(".json") and target.is_file()):
+                self._send(b"not found", "text/plain", 404)
+                return
+            try:
+                body = target.read_bytes()
+            except OSError:
+                self._send(b"bad artifact", "text/plain", 500)
+                return
+            extra = {}
+            if parse_qs(urlparse(self.path).query).get("download"):
+                extra["Content-Disposition"] = f'attachment; filename="{name}"'
+            self._send(body, "application/json", 200, extra)
 
         def _analytics(self, path: str) -> dict:
             from urllib.parse import parse_qs, urlparse
@@ -184,196 +287,726 @@ def serve(directory: str | Path = "results", host: str = "127.0.0.1",
         server.server_close()
 
 
-_DASHBOARD_HTML = """<!doctype html><html lang=en><head><meta charset=utf-8>
+_DASHBOARD_HTML = r"""<!doctype html><html lang=en data-theme=dark><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>tokenjam-bench · analytics</title>
+<title>TokenJam Bench</title>
 <style>
-:root{--bg:#0d1117;--panel:#161b22;--line:#30363d;--fg:#c9d1d9;--mut:#8b949e}
+:root{
+ --bg:#0a0c10; --bg2:#0e1116; --panel:#12151c; --panel2:#161a22; --line:#222834;
+ --line2:#2c333f; --fg:#e6edf3; --mut:#8b94a3; --mut2:#5c6573;
+ --acc:#6e9bff; --acc-d:#3b6cf0; --good:#3fb950; --good-d:#1f7a36;
+ --warn:#e3a008; --bad:#f0556a; --chip:#1a2030;
+ --radius:14px; --shadow:0 1px 0 rgba(255,255,255,.02),0 8px 24px rgba(0,0,0,.28);
+}
+[data-theme=light]{
+ --bg:#f5f6f8; --bg2:#eef0f3; --panel:#ffffff; --panel2:#fafbfc; --line:#e4e7ec;
+ --line2:#d4d9e0; --fg:#1a1f29; --mut:#5b6472; --mut2:#9aa3b2;
+ --acc:#3b6cf0; --acc-d:#2a55cc; --good:#1a7f37; --good-d:#1a7f37;
+ --warn:#9a6700; --bad:#cf222e; --chip:#eef1f6;
+ --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif}
-.wrap{max-width:1100px;margin:0 auto;padding:24px 20px}
-h1{font-size:20px;margin:0} .sub{color:var(--mut);margin:4px 0 14px}
-.live{display:inline-block;width:8px;height:8px;border-radius:50%;background:#2ea043;margin-right:6px;animation:pulse 1.6s infinite}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-.nav{display:flex;gap:4px;flex-wrap:wrap;margin:0 0 18px;border-bottom:1px solid var(--line);padding-bottom:8px}
-.navlink{color:var(--mut);text-decoration:none;padding:6px 12px;border-radius:6px;font-size:13px}
-.navlink:hover{color:var(--fg);background:#1c2230}
-.navlink.active{color:#58a6ff;background:#1f6feb22}
-.tiles{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
-.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px;min-width:130px}
-.tile .v{font-size:20px;font-weight:700} .tile .l{color:var(--mut);font-size:12px}
-.banner{border-radius:8px;padding:10px 14px;margin-bottom:16px;border-left:4px solid #2ea043;background:var(--panel)}
-.banner.bad{border-left-color:#d29922}
-table{width:100%;border-collapse:collapse;font-size:13px;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
-th{color:var(--mut);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.03em}
-tr:hover td{background:#1c2230}
-.mono{font-family:ui-monospace,Menlo,monospace;font-size:12px}
-.v-green{color:#3fb950} .v-yellow{color:#d29922} .v-grey{color:#8b949e}
-.neg{color:#3fb950} .pos{color:#f85149}
-a.btn{color:#58a6ff;text-decoration:none;border:1px solid #1f6feb55;border-radius:6px;padding:2px 8px;font-size:12px}
-a.btn:hover{background:#1f6feb22}
-.tag{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:1px 7px}
-.empty{color:var(--mut);padding:24px;text-align:center}
-.chart{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:16px}
-.legend{font-size:12px;color:var(--mut);margin-top:4px}
-.lg-acc{color:#58a6ff}.lg-cost{color:#3fb950}
-.ttl{font-size:13px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;margin:0 0 10px}
-select{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:4px 8px;font-size:13px}
-</style></head><body><div class=wrap>
-<h1>tokenjam-bench &middot; analytics</h1>
-<p class=sub><span class=live></span>live &middot; auto-refresh 4s &middot; <span id=updated></span></p>
-<div class=nav id=nav></div>
-<div id=main><div class=empty>loading…</div></div>
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);
+ font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,sans-serif;
+ -webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.app{display:flex;min-height:100vh}
+/* sidebar */
+.side{width:248px;flex:0 0 248px;position:sticky;top:0;height:100vh;display:flex;
+ flex-direction:column;background:var(--bg2);border-right:1px solid var(--line);padding:18px 14px}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;font-weight:700;font-size:15px}
+.brand .glyph{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
+ background:var(--chip);border:1px solid var(--line2);font-size:16px}
+.brand small{display:block;color:var(--mut);font-weight:500;font-size:11px;letter-spacing:.04em}
+.nav{display:flex;flex-direction:column;gap:2px;overflow:auto;margin-top:4px}
+.nav a{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:9px;color:var(--mut);
+ font-size:13.5px;transition:background .15s,color .15s;cursor:pointer}
+.nav a .ic{width:18px;text-align:center;font-size:14px;opacity:.95}
+.nav a:hover{background:var(--panel);color:var(--fg)}
+.nav a.active{background:var(--chip);color:var(--fg)}
+.nav a.active .ic{filter:none}
+.side-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);
+ display:flex;align-items:center;justify-content:space-between;color:var(--mut);font-size:12px}
+.tbtn{cursor:pointer;border:1px solid var(--line2);background:var(--panel);color:var(--mut);
+ border-radius:8px;padding:5px 9px;font-size:12px;transition:.15s}
+.tbtn:hover{color:var(--fg);border-color:var(--acc)}
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column;background:
+ radial-gradient(1200px 600px at 70% -10%,rgba(110,155,255,.05),transparent 60%)}
+.top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
+ padding:18px 28px;background:color-mix(in srgb,var(--bg) 86%,transparent);
+ backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.top h1{font-size:19px;margin:0;font-weight:650;letter-spacing:-.01em}
+.chip{font-size:11.5px;color:var(--mut);background:var(--chip);border:1px solid var(--line2);
+ border-radius:999px;padding:3px 10px;font-weight:550}
+.live{display:inline-flex;align-items:center;gap:6px;color:var(--mut);font-size:12px}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(63,185,80,.5);
+ animation:pulse 1.8s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,185,80,.45)}70%{box-shadow:0 0 0 6px rgba(63,185,80,0)}100%{box-shadow:0 0 0 0 rgba(63,185,80,0)}}
+.spacer{flex:1}
+.ctrls{display:flex;align-items:center;gap:8px}
+.view{padding:24px 28px 64px;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.lead{color:var(--mut);margin:-2px 0 18px;font-size:13.5px;max-width:760px}
+.sect{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut2);
+ margin:26px 0 12px;font-weight:650}
+.sect:first-child{margin-top:0}
+/* controls */
+select,button.btn,input.in{background:var(--panel);color:var(--fg);border:1px solid var(--line2);
+ border-radius:9px;padding:7px 11px;font-size:13px;font-family:inherit}
+button.btn{cursor:pointer;transition:.15s}
+button.btn:hover{border-color:var(--acc);color:var(--fg)}
+button.btn.pri{background:var(--acc-d);border-color:var(--acc-d);color:#fff}
+button.btn.pri:hover{filter:brightness(1.08)}
+select:focus,input.in:focus,button:focus{outline:none;border-color:var(--acc)}
+/* cards / grids */
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}.g5{grid-template-columns:repeat(5,1fr)}
+.auto{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+ padding:16px 18px;transition:transform .16s,border-color .16s,box-shadow .16s}
+.card.hov:hover{transform:translateY(-2px);border-color:var(--line2);box-shadow:var(--shadow)}
+.stat .lbl{color:var(--mut);font-size:12px;font-weight:550;letter-spacing:.01em}
+.stat .num{font-size:26px;font-weight:700;letter-spacing:-.02em;margin-top:6px;line-height:1.1}
+.stat .sub{color:var(--mut2);font-size:11.5px;margin-top:3px}
+.stat .top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.spark{opacity:.9}
+/* banners */
+.banner{display:flex;align-items:center;gap:12px;border-radius:var(--radius);padding:14px 18px;
+ border:1px solid var(--line);background:var(--panel);font-size:14px}
+.banner .bi{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:0 0 auto}
+.banner.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line))}
+.banner.ok .bi{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+.banner.warn{border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
+.banner.warn .bi{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
+.banner.bad{border-color:color-mix(in srgb,var(--bad) 45%,var(--line))}
+.banner.bad .bi{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}
+.banner b{font-weight:650}.banner .bsub{color:var(--mut);font-size:12.5px}
+/* badges */
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+ padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-good{color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent);
+ border-color:color-mix(in srgb,var(--good) 30%,transparent)}
+.b-warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);
+ border-color:color-mix(in srgb,var(--warn) 30%,transparent)}
+.b-bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 12%,transparent);
+ border-color:color-mix(in srgb,var(--bad) 30%,transparent)}
+.b-mut{color:var(--mut);background:var(--chip);border-color:var(--line2)}
+.tag{font-size:10.5px;color:var(--mut);border:1px solid var(--line2);border-radius:6px;
+ padding:1px 6px;text-transform:uppercase;letter-spacing:.04em}
+.delta{font-weight:650}.up{color:var(--good)}.down{color:var(--bad)}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.muted{color:var(--mut)}
+/* tables */
+.tblbar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.tblbar .in{flex:0 0 auto;width:240px;max-width:60%}
+.tblcount{color:var(--mut2);font-size:12px;margin-left:auto}
+.tblscroll{overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+table.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl thead th{position:sticky;top:0;background:var(--panel2);color:var(--mut);text-align:left;
+ font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;
+ padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}
+.tbl th.srt{cursor:pointer;user-select:none}.tbl th.srt:hover{color:var(--fg)}
+.tbl th.on{color:var(--acc)}
+.tbl td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tbody tr{transition:background .12s}
+.tbl tbody tr:hover{background:var(--panel2)}
+.tbl tbody tr:last-child td{border-bottom:none}
+.empty{color:var(--mut);text-align:center;padding:30px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+a.lnk,button.lnk{color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);
+ border-radius:7px;padding:3px 9px;font-size:12px;background:transparent;cursor:pointer;
+ font-family:inherit;transition:.15s}
+a.lnk:hover,button.lnk:hover{background:color-mix(in srgb,var(--acc) 12%,transparent)}
+button.lnk.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 35%,transparent)}
+button.lnk.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)}
+/* charts */
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.chart h3{margin:0 0 4px;font-size:13.5px;font-weight:600}
+.chart .ch-sub{color:var(--mut);font-size:12px;margin:0 0 12px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--mut);margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+/* timeline */
+.tl{display:flex;flex-direction:column}
+.tl-item{display:flex;gap:14px;padding:11px 2px;position:relative}
+.tl-rail{flex:0 0 auto;display:flex;flex-direction:column;align-items:center}
+.tl-dot{width:11px;height:11px;border-radius:50%;border:2px solid var(--panel);margin-top:4px}
+.tl-line{flex:1;width:2px;background:var(--line)}
+.tl-item:last-child .tl-line{display:none}
+.tl-body{flex:1;min-width:0;padding-bottom:4px}
+.tl-body .t1{font-size:13.5px;font-weight:550}
+.tl-body .t2{color:var(--mut);font-size:12px;margin-top:1px}
+.tl-time{color:var(--mut2);font-size:11.5px;white-space:nowrap}
+/* settings */
+.set-row{display:flex;align-items:center;justify-content:space-between;gap:16px;
+ padding:14px 0;border-bottom:1px solid var(--line)}
+.set-row:last-child{border-bottom:none}
+.set-row .k{font-weight:550}.set-row .d{color:var(--mut);font-size:12.5px;margin-top:2px}
+.bar{height:7px;border-radius:6px;background:var(--chip);overflow:hidden;margin-top:8px}
+.bar > i{display:block;height:100%;background:var(--acc);border-radius:6px}
+@media(max-width:1080px){.g4,.g5{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:760px){.side{display:none}}
+</style></head><body>
+<div class=app>
+ <aside class=side>
+  <div class=brand><span class=glyph>&#129514;</span><div>TokenJam Bench<small>Benchmark &amp; Evaluation</small></div></div>
+  <nav class=nav id=nav></nav>
+  <div class=side-foot>
+   <span id=ver>v&middot;&middot;&middot;</span>
+   <span class=tbtn id=themeBtn>&#9789; Theme</span>
+  </div>
+ </aside>
+ <main class=main>
+  <header class=top>
+   <h1 id=title>Overview</h1>
+   <span class=chip id=ctxchip></span>
+   <div class=spacer></div>
+   <span class=live><span class=dot></span><span id=updated>live</span></span>
+   <div class=ctrls id=ctrls></div>
+  </header>
+  <section class=view id=view><div class=empty>loading&hellip;</div></section>
+ </main>
+</div>
 <script>
-const V={no_significant_regression:'v-green',quality_signals_improved:'v-green',
-  regression_suspected:'v-yellow',significant_regression:'v-yellow',insufficient_evidence:'v-grey'};
-const VIEWS=[['overview','Overview'],['leaderboards','Leaderboards'],['providers','Providers'],
-  ['versions','Versions'],['regressions','Regressions'],['trends','Trends'],['reports','Reports']];
-let selBench=null, selConfig=null;
-const M=()=>document.getElementById('main');
-function esc(s){return String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
-function fmtTime(ts){if(!ts)return'';return new Date(ts*1000).toLocaleString();}
-async function getJSON(u){try{return await (await fetch(u)).json();}catch(e){return null;}}
-function tile(v,l){return `<div class=tile><div class=v>${esc(v)}</div><div class=l>${esc(l)}</div></div>`;}
-function vtag(v){return `<span class=${V[v]||'v-grey'}>${esc(String(v).replace(/_/g,' '))}</span>`;}
-function dcost(x){if(x==null)return'—';const c=x<0?'neg':(x>0?'pos':'');return `<span class=${c}>${x>0?'+':''}${x}%</span>`;}
-function pct(x){return x==null?'—':(Math.round(x*10)/10)+'%';}
-function tbl(headers,rows){
-  if(!rows.length) return '<div class=empty>no data yet</div>';
-  return `<table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>`+
-    rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')+'</tbody></table>';
+"use strict";
+// ---- nav model -------------------------------------------------------------
+const NAV=[
+ ["overview","Overview","🏠"],["benchmarks","Benchmarks","📊"],
+ ["scenarios","Scenario Library","🤖"],["replay","Replay Validation","🔁"],
+ ["deepeval","DeepEval","🧠"],["trends","Trends","📈"],
+ ["leaderboards","Leaderboards","🏆"],["providers","Provider Comparison","⚖️"],
+ ["versions","Version Comparison","🔄"],["regressions","Regression Center","📉"],
+ ["reports","Reports","📄"],["ci","CI History","⚙️"],["settings","Settings","⚙️"]];
+const LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
+// ---- verdict semantics -----------------------------------------------------
+const GOOD=new Set(["no_significant_regression","quality_signals_improved"]);
+const BAD=new Set(["significant_regression"]);
+const WARN=new Set(["regression_suspected"]);
+function vclass(v){return GOOD.has(v)?"b-good":BAD.has(v)?"b-bad":WARN.has(v)?"b-warn":"b-mut";}
+function badge(v){return `<span class="badge ${vclass(v)}">${esc(String(v||"?").replace(/_/g," "))}</span>`;}
+// ---- prefs (localStorage) --------------------------------------------------
+const PREF={get(k,d){try{const v=localStorage.getItem("tjb."+k);return v==null?d:v;}catch(e){return d;}},
+ set(k,v){try{localStorage.setItem("tjb."+k,v);}catch(e){}}};
+// ---- helpers ---------------------------------------------------------------
+const M=()=>document.getElementById("view");
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function fmtTime(ts){if(!ts)return"—";return new Date(ts*1000).toLocaleString([], {month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"});}
+function ago(ts){if(!ts)return"—";const s=Date.now()/1000-ts;if(s<60)return"just now";
+ if(s<3600)return Math.floor(s/60)+"m ago";if(s<86400)return Math.floor(s/3600)+"h ago";return Math.floor(s/86400)+"d ago";}
+async function getJSON(u){try{const r=await fetch(u);if(!r.ok)return null;return await r.json();}catch(e){return null;}}
+function provOf(m){return String(m||"").split(":")[0]||"?";}
+function modelOf(m){const p=String(m||"").split(":");return p.length>1?p.slice(1).join(":"):p[0];}
+function pct(x){return x==null?"—":(Math.round(x*10)/10)+"%";}
+function pp(x){return x==null?"—":(x>=0?"+":"")+(Math.round(x*10)/10)+"pp";}
+function money(x){return x==null?"—":"$"+Number(x).toFixed(Number(x)<0.01?6:4);}
+function saved(costDelta){ // costDelta negative = cheaper
+ if(costDelta==null)return"—";const s=-costDelta;
+ const cls=s>0?"up":(s<0?"down":"");return `<span class="delta ${cls}">${s>0?"−":""}${Math.abs(Math.round(s*10)/10)}%</span>`;}
+function accDelta(x){if(x==null)return"—";const cls=x>0?"up":(x<0?"down":"");
+ return `<span class="delta ${cls}">${pp(x)}</span>`;}
+function conf(r){ // statistical confidence cell: McNemar p + delta CI
+ if(r.mcnemar_p==null&&r.delta_low==null)return '<span class=muted>—</span>';
+ const p=r.mcnemar_p==null?"":`p=${Number(r.mcnemar_p).toFixed(3)}`;
+ const ci=(r.delta_low==null||r.delta_high==null)?"":`<span class=muted>CI [${pp(r.delta_low)}, ${pp(r.delta_high)}]</span>`;
+ return `<div class=mono style="font-size:12px">${p}</div>${ci?`<div style="font-size:11px">${ci}</div>`:""}`;}
+function avg(xs){const v=xs.filter(x=>x!=null&&!isNaN(x));return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;}
+function statCard(num,lbl,sub,sparkPts){
+ const sp=sparkPts&&sparkPts.length>1?spark(sparkPts):"";
+ return `<div class="card hov stat"><div class=top><div class=lbl>${esc(lbl)}</div>${sp}</div>
+  <div class=num>${num}</div>${sub?`<div class=sub>${sub}</div>`:""}</div>`;}
+// ---- inline SVG charts (no library) ----------------------------------------
+// NOTE: CSS var() is NOT honored in SVG *presentation attributes*
+// (stroke="var(--x)"); it only resolves inside an inline style="" — so every
+// themed stroke/fill below goes through style="" to stay theme-reactive.
+function spark(pts){ // tiny sparkline for stat cards
+ if(!pts||pts.length<2)return"";const W=90,H=28,n=pts.length;
+ const mn=Math.min(...pts),mx=Math.max(...pts),rg=(mx-mn)||1;
+ const X=i=>(i/(n-1))*W,Y=v=>H-2-((v-mn)/rg)*(H-4);
+ const d=pts.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`).join(" ");
+ return `<svg class=spark width=${W} height=${H} viewBox="0 0 ${W} ${H}">
+  <polyline points="${d}" style="fill:none;stroke:var(--acc)" stroke-width="1.6" stroke-linecap="round" /></svg>`;}
+function drawChart(id,pts,opts){ // dual line: accuracy(a) & cost saved(c), both 0..100
+ const box=document.getElementById(id);if(!box)return;opts=opts||{};
+ if(!pts||!pts.length){box.innerHTML='<div class=empty>no data in range</div>';return;}
+ const W=1040,H=190,padL=34,padR=14,padT=14,padB=26,n=pts.length;
+ const iw=W-padL-padR,ih=H-padT-padB;
+ const X=i=>n<=1?padL+iw/2:padL+(i/(n-1))*iw;
+ const Y=v=>padT+(1-Math.max(0,Math.min(100,v))/100)*ih;
+ const line=(g,col,fill)=>{const pl=pts.map((p,i)=>`${X(i).toFixed(1)},${Y(g(p)).toFixed(1)}`).join(" ");
+  const area=fill?`<polygon points="${padL},${padT+ih} ${pl} ${(W-padR)},${padT+ih}" style="fill:${col};opacity:.10" />`:"";
+  const dots=pts.map((p,i)=>`<circle cx="${X(i).toFixed(1)}" cy="${Y(g(p)).toFixed(1)}" r="2.6" style="fill:${col}" />`).join("");
+  return `${area}<polyline points="${pl}" style="fill:none;stroke:${col}" stroke-width="2" stroke-linejoin="round" />${dots}`;};
+ let grid="";[0,25,50,75,100].forEach(v=>{const y=Y(v).toFixed(1);
+  grid+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" style="stroke:var(--line)" stroke-width="1" />`+
+        `<text x="4" y="${(+y+3).toFixed(1)}" style="fill:var(--mut2)" font-size="10">${v}</text>`;});
+ let xl="";const step=Math.max(1,Math.floor(n/8));
+ for(let i=0;i<n;i+=step){const lab=pts[i].x||"";xl+=`<text x="${X(i).toFixed(1)}" y="${H-8}" style="fill:var(--mut2)" font-size="10" text-anchor="middle">${esc(lab)}</text>`;}
+ const second=opts.single?"":line(p=>p.a,"var(--acc)",false);
+ box.innerHTML=`<svg width=100% viewBox="0 0 ${W} ${H}" preserveAspectRatio=none style="max-width:100%;height:190px">
+  ${grid}${line(p=>p.c,"var(--good)",true)}${second}${xl}</svg>`;}
+function barChart(id,items,opts){
+ const box=document.getElementById(id);if(!box)return;opts=opts||{};
+ if(!items||!items.length){box.innerHTML='<div class=empty>no data</div>';return;}
+ const W=1040,H=200,padL=34,padR=14,padT=14,padB=34,n=items.length;
+ const iw=W-padL-padR,ih=H-padT-padB,mx=Math.max(...items.map(d=>d.value||0),1);
+ const bw=Math.min(54,(iw/n)*0.62),gap=iw/n;
+ const Y=v=>padT+(1-(v/mx))*ih;
+ let bars="";items.forEach((d,i)=>{const x=padL+gap*i+(gap-bw)/2,y=Y(d.value||0),h=padT+ih-y;
+  bars+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${Math.max(0,h).toFixed(1)}" rx="4" style="fill:${d.color||"var(--acc)"};opacity:.92" />`+
+   `<text x="${(x+bw/2).toFixed(1)}" y="${H-12}" style="fill:var(--mut2)" font-size="10" text-anchor="middle">${esc(d.label)}</text>`;});
+ let grid="";[0,.5,1].forEach(f=>{const y=Y(mx*f).toFixed(1);grid+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" style="stroke:var(--line)" stroke-width="1" />`;});
+ box.innerHTML=`<svg width=100% viewBox="0 0 ${W} ${H}" style="max-width:100%;height:200px">${grid}${bars}</svg>`;}
+function donut(frac,label){
+ const r=46,c=2*Math.PI*r,off=c*(1-Math.max(0,Math.min(1,frac)));
+ return `<svg width=120 height=120 viewBox="0 0 120 120">
+  <circle cx="60" cy="60" r="${r}" style="fill:none;stroke:var(--chip)" stroke-width="12" />
+  <circle cx="60" cy="60" r="${r}" style="fill:none;stroke:var(--good)" stroke-width="12" stroke-linecap="round"
+   stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 60 60)" />
+  <text x="60" y="58" text-anchor="middle" font-size="22" font-weight="700" style="fill:var(--fg)">${Math.round(frac*100)}%</text>
+  <text x="60" y="76" text-anchor="middle" font-size="10" style="fill:var(--mut)">${esc(label||"")}</text></svg>`;}
+// ---- reusable table (search + click-sort) ----------------------------------
+const _TBL={};
+function table(elId,cols,rows,opts){_TBL[elId]={cols,rows,opts:opts||{},q:"",sk:(opts&&opts.sortKey)||null,dir:(opts&&opts.dir)||-1};drawTable(elId);}
+function _cell(r,c,raw){const v=c.get?c.get(r):r[c.key];if(raw)return v==null?"":v;return c.html?c.html(r):esc(v==null?"—":v);}
+function _sortv(r,c){return c.sort?c.sort(r):(c.get?c.get(r):r[c.key]);}
+function drawTable(elId){
+ const t=_TBL[elId],el=document.getElementById(elId);if(!t||!el)return;
+ let rows=t.rows.slice();
+ if(t.q){const q=t.q.toLowerCase();rows=rows.filter(r=>t.cols.some(c=>String(_cell(r,c,true)).toLowerCase().includes(q)));}
+ if(t.sk){const c=t.cols.find(x=>x.key===t.sk);if(c)rows.sort((a,b)=>{const x=_sortv(a,c),y=_sortv(b,c);
+  if(x==null)return 1;if(y==null)return -1;return(x>y?1:x<y?-1:0)*t.dir;});}
+ const head=t.cols.map(c=>{const on=t.sk===c.key;const ar=on?(t.dir<0?" ▾":" ▴"):"";
+  return `<th class="${c.nosort?"":"srt"} ${on?"on":""}" data-k="${esc(c.key)}">${esc(c.label)}${ar}</th>`;}).join("");
+ const body=rows.length?rows.map(r=>`<tr>${t.cols.map(c=>`<td>${_cell(r,c)}</td>`).join("")}</tr>`).join("")
+   :`<tr><td colspan=${t.cols.length} class=empty>${esc((t.opts.empty)||"no rows")}</td></tr>`;
+ const search=t.opts.search===false?"":`<input class=in placeholder="Search…" value="${esc(t.q)}">`;
+ el.innerHTML=`<div class=tblbar>${search}<span class=tblcount>${rows.length} row${rows.length===1?"":"s"}</span></div>
+  <div class=tblscroll><table class=tbl><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+ const s=el.querySelector(".in");
+ if(s)s.oninput=()=>{t.q=s.value;drawTable(elId);const ns=el.querySelector(".in");if(ns){ns.focus();const L=t.q.length;ns.setSelectionRange(L,L);}};
+ el.querySelectorAll("th.srt").forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(t.sk===k)t.dir=-t.dir;else{t.sk=k;t.dir=-1;}drawTable(elId);});
 }
-function drawChart(id,pts){
-  const box=document.getElementById(id); if(!box)return;
-  if(!pts.length){box.innerHTML='<div class=empty>no data</div>';return;}
-  const W=1040,H=150,padL=30,padR=10,padT=10,padB=14,n=pts.length;
-  const iw=W-padL-padR, ih=H-padT-padB;
-  const X=i=> n<=1? padL+iw/2 : padL+(i/(n-1))*iw;
-  const Y=v=> padT+(1-Math.max(0,Math.min(100,v))/100)*ih;
-  const series=(g,col)=>{
-    const pl=pts.map((p,i)=>`${X(i).toFixed(1)},${Y(g(p)).toFixed(1)}`).join(' ');
-    const dots=pts.map((p,i)=>`<circle cx=${X(i).toFixed(1)} cy=${Y(g(p)).toFixed(1)} r=3 fill=${col}/>`).join('');
-    return `<polyline points="${pl}" fill=none stroke=${col} stroke-width=2/>${dots}`;};
-  let grid='';[0,50,100].forEach(v=>{const y=Y(v).toFixed(1);
-    grid+=`<line x1=${padL} y1=${y} x2=${W-padR} y2=${y} stroke=#30363d stroke-width=1/>`+
-          `<text x=2 y=${(+y+3).toFixed(1)} fill=#8b949e font-size=10>${v}</text>`;});
-  box.innerHTML=`<svg width=100% viewBox="0 0 ${W} ${H}" preserveAspectRatio=none `+
-    `style="max-width:100%;height:150px">${grid}${series(p=>p.c,'#3fb950')}${series(p=>p.a,'#58a6ff')}</svg>`;
+function reportActs(r){return `<div class=acts>
+  <a class=lnk href="/report/${encodeURIComponent(r.file)}" target=_blank>Report</a>
+  <a class=lnk href="/raw/${encodeURIComponent(r.file)}" target=_blank>JSON</a></div>`;}
+// ---- shared loaders --------------------------------------------------------
+async function loadRuns(){return (await getJSON("/api/runs"))||[];}
+function bucket(runs){const by={};runs.forEach(r=>{(by[r.benchmark]=by[r.benchmark]||[]).push(r);});return by;}
+const SCEN=new Set(["coding-assistant","rag-support","research-agent","browser-agent","customer-support"]);
+const CAT={humaneval:"Executable",gsm8k:"Executable","swe-bench-lite":"Executable",samples:"Executable",
+ replay:"Replay",judged:"LLM-judged"};
+function catOf(b){if(SCEN.has(b))return"Scenarios";return CAT[b]||"Other";}
+// =================== PAGES ==================================================
+async function pgOverview(){
+ const runs=await loadRuns();
+ const [mtx,hist,scen,vers]=await Promise.all([getJSON("/api/matrix"),getJSON("/api/history"),
+   getJSON("/api/scenarios"),getJSON("/api/version-summary")]);
+ const live=runs.filter(r=>!r.mock);
+ const provs=new Set();runs.forEach(r=>{provs.add(provOf(r.original_model));provs.add(provOf(r.candidate_model));});
+ const benches=new Set(runs.map(r=>r.benchmark));
+ const replay=runs.filter(r=>r.benchmark==="replay");
+ const savings=runs.map(r=>-r.cost_delta_pct).filter(x=>x>0);
+ const avgSave=avg(savings),avgAcc=avg(runs.map(r=>r.accuracy_delta_pp));
+ const latest=runs[0];
+ const ver=(hist&&hist.versions&&hist.versions.slice(-1)[0])||(latest&&latest.tokenjam_version)||"—";
+ const sparkAcc=runs.slice(0,12).reverse().map(r=>r.candidate_pass_rate);
+ const sparkSave=runs.slice(0,12).reverse().map(r=>Math.max(0,-r.cost_delta_pct));
+ const cards=[
+  statCard(runs.length,"Total Benchmark Runs","across all configs"),
+  statCard(live.length,"Live Runs",live.length?"real API spend":"all mock so far"),
+  statCard(provs.size,"Providers Tested",[...provs].join(", ")),
+  statCard(benches.size,"Benchmarks","distinct suites"),
+  statCard((scen&&scen.rows&&scen.rows.length)||0,"Scenario Suites","agentic workloads"),
+  statCard(replay.length,"Replay Sessions","historical re-runs"),
+  statCard(avgSave==null?"—":"−"+Math.round(avgSave)+"%","Avg Cost Reduction","measured, savings runs",sparkSave),
+  statCard(avgAcc==null?"—":pp(avgAcc),"Avg Accuracy Delta","candidate vs original",sparkAcc),
+  statCard(esc(ver),"Latest TokenJam Version","under test"),
+  statCard(latest?ago(latest.created_at):"—","Latest Benchmark","newest proof"),
+ ].join("");
+ // recommendation
+ const anyBad=runs.some(r=>BAD.has(r.verdict))||(mtx&&mtx.regressions_found>0);
+ const anyWarn=runs.some(r=>WARN.has(r.verdict));
+ let banner;
+ if(!runs.length)banner=`<div class="banner"><div class=bi>🔬</div><div><b>No proofs yet.</b>
+   <div class=bsub>Run <span class=mono>tjbench run</span> to produce your first evidence-backed validation.</div></div></div>`;
+ else if(anyBad)banner=`<div class="banner bad"><div class=bi>⚠</div><div><b>Regression detected.</b>
+   <div class=bsub>At least one config shows a statistically significant pass-rate drop. See Regression Center.</div></div></div>`;
+ else banner=`<div class="banner ok"><div class=bi>✓</div><div><b>No significant regressions.</b>
+   <div class=bsub>Every analyzed config is within statistical noise of its original on the measured benchmarks.${anyWarn?" Some configs are flagged to review.":""}</div></div></div>`;
+ // timeline
+ const tl=runs.slice(0,7).map(r=>`<div class=tl-item><div class=tl-rail>
+   <div class=tl-dot style="background:var(--${GOOD.has(r.verdict)?"good":BAD.has(r.verdict)?"bad":WARN.has(r.verdict)?"warn":"mut2"})"></div><div class=tl-line></div></div>
+   <div class=tl-body><div class=t1>${esc(r.benchmark)} ${r.mock?'<span class=tag>mock</span>':''}</div>
+   <div class=t2><span class=mono>${esc(modelOf(r.original_model))} → ${esc(modelOf(r.candidate_model))}</span> &middot; ${badge(r.verdict)} &middot; saved ${saved(r.cost_delta_pct)}</div></div>
+   <div class=tl-time>${ago(r.created_at)}</div></div>`).join("")||'<div class=empty>no runs</div>';
+ M().innerHTML=`<p class=lead>The trust layer for TokenJam. Each row below is an executable benchmark with measured cost and a hedged statistical verdict — never a bare "safe".</p>
+  <div class="grid g5">${cards}</div>
+  <div class=sect>Overall recommendation status</div>${banner}
+  <div class="grid g2" style="margin-top:18px;align-items:start">
+   <div class=chart><h3>Accuracy &amp; cost-saved trend</h3><p class=ch-sub>candidate pass-rate and % cost saved, oldest → newest</p>
+    <div id=chartbox></div>
+    <div class=legend><span><i style="background:var(--acc)"></i>candidate accuracy</span><span><i style="background:var(--good)"></i>cost saved</span></div></div>
+   <div class=card><div class=sect style="margin:0 0 4px">Recent benchmark timeline</div><div class=tl>${tl}</div></div>
+  </div>
+  <div class=sect>Latest benchmark runs</div><div id=ovtbl></div>`;
+ drawChart("chartbox",runs.slice().reverse().map(r=>({a:r.candidate_pass_rate,c:Math.max(0,-r.cost_delta_pct),x:fmtTime(r.created_at).split(",")[0]})));
+ table("ovtbl",[
+  {key:"created_at",label:"Date",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
+  {key:"benchmark",label:"Benchmark",html:r=>esc(r.benchmark)+(r.mock?' <span class=tag>mock</span>':'')},
+  {key:"original_model",label:"Original",html:r=>`<span class=mono>${esc(r.original_model)}</span>`},
+  {key:"candidate_model",label:"Candidate",html:r=>`<span class=mono>${esc(r.candidate_model)}</span>`},
+  {key:"candidate_pass_rate",label:"Accuracy",html:r=>`${r.original_pass_rate}% → <b>${r.candidate_pass_rate}%</b> ${accDelta(r.accuracy_delta_pp)}`},
+  {key:"cost_delta_pct",label:"Cost Saved",sort:r=>-r.cost_delta_pct,html:r=>saved(r.cost_delta_pct)},
+  {key:"mcnemar_p",label:"Confidence",nosort:true,html:r=>conf(r)},
+  {key:"verdict",label:"Verdict",html:r=>badge(r.verdict)},
+  {key:"file",label:"",nosort:true,html:r=>reportActs(r)},
+ ],runs,{sortKey:"created_at",dir:-1});
 }
-
-async function renderOverview(){
-  const runs=(await getJSON('/api/runs'))||[];
-  const mtx=(await getJSON('/api/matrix'))||{regressions_found:0};
-  const hist=(await getJSON('/api/history'))||{count:0,versions:[]};
-  const real=runs.filter(r=>!r.mock).length, latest=runs[0];
-  const tiles=tile(runs.length,'proof runs')+tile(real,'live (non-mock)')+
-    tile(mtx.regressions_found||0,'cross-version regressions')+tile(hist.count||0,'runs in history')+
-    tile((hist.versions||[]).length,'tokenjam versions')+
-    (latest?tile((latest.cost_delta_pct>0?'+':'')+latest.cost_delta_pct+'%','latest Δ cost'):'');
-  const banner=mtx.regressions_found>0
-    ? `<div class="banner bad">&#9888; ${mtx.regressions_found} cross-version regression(s) detected.</div>`
-    : (runs.length?`<div class=banner>&#10003; no cross-version regressions.</div>`:'');
-  const rows=runs.map(r=>[`<span class=mono>${esc(fmtTime(r.created_at))}</span>`,
-    esc(r.benchmark)+(r.mock?' <span class=tag>mock</span>':''),
-    `<span class=mono>${esc(r.original_model)} → ${esc(r.candidate_model)}</span>`,
-    `<span class=mono>${esc(r.tokenjam_version)}</span>`, r.n_tasks,
-    `${r.original_pass_rate}% → <b>${r.candidate_pass_rate}%</b>`, dcost(r.cost_delta_pct),
-    vtag(r.verdict), `<a class=btn href="/report/${encodeURIComponent(r.file)}" target=_blank>report</a>`]);
-  M().innerHTML=`<div class=tiles>${tiles}</div>${banner}
-    <div class=chart><div class=ttl>Trend · accuracy & cost saved over time</div><div id=chartbox></div>
-    <div class=legend><span class=lg-acc>&#9632;</span> candidate accuracy &nbsp;&nbsp;
-    <span class=lg-cost>&#9632;</span> cost saved</div></div>
-    ${tbl(['when','benchmark','original → candidate','tokenjam','n','accuracy','Δ cost','verdict',''],rows)}`;
-  drawChart('chartbox', runs.slice().reverse().map(r=>({a:r.candidate_pass_rate,c:Math.max(0,-r.cost_delta_pct)})));
+async function pgBenchmarks(){
+ const runs=await loadRuns();const by=bucket(runs);
+ if(!runs.length){M().innerHTML='<div class=empty>No benchmark runs yet.</div>';return;}
+ const cats={};Object.keys(by).forEach(b=>{(cats[catOf(b)]=cats[catOf(b)]||[]).push(b);});
+ const order=["Executable","Scenarios","Replay","LLM-judged","Other"];
+ let html=`<p class=lead>Every benchmark family, grouped by how accuracy is measured. A card's verdict is the latest run's hedged McNemar result — click through for the full proof.</p>`;
+ order.filter(c=>cats[c]).forEach(c=>{
+  html+=`<div class=sect>${esc(c)}</div><div class="grid auto">`;
+  cats[c].sort().forEach(b=>{
+   const rs=by[b];const latest=rs[0];
+   const ci=(latest.wilson_low==null)?"—":`${pct(latest.wilson_low)} – ${pct(latest.wilson_high)}`;
+   const mc=(latest.mcnemar_b==null)?"—":`b=${latest.mcnemar_b} / c=${latest.mcnemar_c}${latest.mcnemar_p==null?"":" · p="+Number(latest.mcnemar_p).toFixed(3)}`;
+   html+=`<div class="card hov">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+     <div style="font-weight:650;font-size:15px">${esc(b)}</div>${badge(latest.verdict)}</div>
+    <div class=muted style="font-size:12px;margin-top:2px">${rs.length} run${rs.length===1?"":"s"} &middot; latest ${ago(latest.created_at)}</div>
+    <div class="grid g2" style="gap:10px;margin-top:14px">
+     <div><div class=lbl style="color:var(--mut);font-size:11px">PASS RATE</div><div style="font-size:18px;font-weight:700">${latest.candidate_pass_rate}%</div></div>
+     <div><div class=lbl style="color:var(--mut);font-size:11px">COST SAVED</div><div style="font-size:18px;font-weight:700">${saved(latest.cost_delta_pct)}</div></div>
+     <div><div class=lbl style="color:var(--mut);font-size:11px">WILSON 95% CI</div><div class=mono style="font-size:13px">${ci}</div></div>
+     <div><div class=lbl style="color:var(--mut);font-size:11px">McNEMAR</div><div class=mono style="font-size:12px">${mc}</div></div>
+    </div>
+    <div class=acts style="margin-top:14px"><a class=lnk href="/report/${encodeURIComponent(latest.file)}" target=_blank>Open report</a>
+     <a class=lnk href="/raw/${encodeURIComponent(latest.file)}" target=_blank>JSON</a></div></div>`;
+  });
+  html+=`</div>`;
+ });
+ M().innerHTML=html;
 }
-
-async function renderLeaderboards(){
-  const cfg=(await getJSON('/api/configs'))||{rows:[]};
-  const benches=[...new Set((cfg.rows||[]).map(r=>r.benchmark))];
-  if(!benches.length){M().innerHTML='<div class=empty>No history yet. Run some proofs.</div>';return;}
-  if(!selBench||!benches.includes(selBench)) selBench=benches[0];
-  const lb=(await getJSON('/api/leaderboard?benchmark='+encodeURIComponent(selBench)))||{rows:[]};
-  const sel=`<select onchange="selBench=this.value;renderLeaderboards()">`+
-    benches.map(b=>`<option ${b===selBench?'selected':''}>${esc(b)}</option>`).join('')+`</select>`;
-  const rows=(lb.rows||[]).map((r,i)=>[`#${i+1}`,`<span class=mono>${esc(r.model)}</span>`,
-    pct((r.pass_rate||0)*100), r.cost_usd==null?'—':'$'+(+r.cost_usd).toFixed(6),
-    `<span class=mono>${esc(r.tokenjam_version)}</span>`]);
-  M().innerHTML=`<div class=ttl>Leaderboard &nbsp; ${sel}</div>${tbl(['rank','model','pass-rate','cost','tokenjam'],rows)}`;
+async function pgScenarios(){
+ const [scen,runs]=await Promise.all([getJSON("/api/scenarios"),loadRuns()]);
+ const cat=(scen&&scen.rows)||[];const by=bucket(runs);
+ const meta={"coding-assistant":["Coding Assistant","read → search → edit → test → commit, with destructive tools gated"],
+  "rag-support":["RAG Support","search KB → retrieve → answer; refunds &amp; cancels are trapped"],
+  "research-agent":["Research Agent","search → fetch → summarize; publishing is trapped"],
+  "browser-agent":["Browser Agent","navigate → extract → report; payments are trapped"],
+  "customer-support":["Customer Support","planned suite"]};
+ let html=`<p class=lead>Production-shaped agent suites. Each scenario judges the <b>whole trace</b> — right tools, right order, right answer, and <b>no catastrophic action</b> — so a downsize can't quietly trade safety for cost.</p><div class="grid auto">`;
+ const names=cat.length?cat.map(c=>c.name):Object.keys(meta);
+ names.forEach(name=>{
+  const c=cat.find(x=>x.name===name)||{name,n_tasks:null};
+  const m=meta[name]||[name,""];
+  const rs=(by[name]||[]);const latest=rs[0];
+  html+=`<div class="card hov">
+   <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+    <div style="font-weight:650;font-size:15px">${esc(m[0])}</div>
+    ${latest?badge(latest.verdict):'<span class="badge b-mut">no runs</span>'}</div>
+   <div class=muted style="font-size:12px;margin-top:3px">${m[1]}</div>
+   <div class="grid g2" style="gap:10px;margin-top:14px">
+    <div><div style="color:var(--mut);font-size:11px">TASKS</div><div style="font-size:18px;font-weight:700">${c.n_tasks==null?"—":c.n_tasks}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">PASS RATE</div><div style="font-size:18px;font-weight:700">${latest?latest.candidate_pass_rate+"%":"—"}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">COST SAVED</div><div style="font-size:16px;font-weight:700">${latest?saved(latest.cost_delta_pct):"—"}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">SAFETY GATE</div><div><span class="badge b-good">enforced</span></div></div>
+   </div>
+   <div class=muted style="font-size:11.5px;margin-top:10px">${latest?("latest tj"+esc(latest.tokenjam_version)+" · "+ago(latest.created_at)):"run <span class=mono>tjbench scenarios</span> to populate"}</div>
+   ${latest?`<div class=acts style="margin-top:10px"><a class=lnk href="/report/${encodeURIComponent(latest.file)}" target=_blank>Open report</a></div>`:""}</div>`;
+ });
+ html+=`</div>`;M().innerHTML=html;
 }
-
-async function renderProviders(){
-  const p=(await getJSON('/api/providers'))||{rows:[]};
-  const rows=(p.rows||[]).map(r=>[`<span class=mono>${esc(r.model)}</span>`, r.runs, r.benchmarks,
-    pct((r.avg_accuracy||0)*100), r.avg_cost_usd==null?'—':'$'+(+r.avg_cost_usd).toFixed(6)]);
-  M().innerHTML=`<div class=ttl>Provider / model matrix</div>${tbl(['model','runs','benchmarks','avg accuracy','avg cost'],rows)}`;
+async function pgReplay(){
+ const runs=(await loadRuns()).filter(r=>r.benchmark==="replay");
+ const cards=[
+  statCard(runs.length,"Replay Runs","historical re-validations"),
+  statCard(runs.reduce((a,r)=>a+(r.candidate_pass||0),0),"Equivalent Outputs","judge-passed turns"),
+  statCard(runs.reduce((a,r)=>a+(r.mcnemar_b||0),0),"Divergences","original-pass / candidate-fail"),
+  statCard((()=>{const v=avg(runs.map(r=>r.candidate_pass_rate));return v==null?"—":Math.round(v)+"%";})(),"Avg Judge Pass","across replay runs"),
+  statCard((()=>{const v=avg(runs.map(r=>-r.cost_delta_pct));return v==null?"—":"−"+Math.round(v)+"%";})(),"Avg Cost Saved","vs historical spend"),
+ ].join("");
+ let body;
+ if(!runs.length)body=`<div class="banner"><div class=bi>🔁</div><div><b>No replay runs yet.</b>
+   <div class=bsub>Replay re-runs your real TokenJam telemetry through the candidate model and judges equivalence. Run <span class=mono>tjbench replay &lt;telemetry&gt;</span>.</div></div></div>`;
+ else body=`<div class=chart style="margin-top:18px"><h3>Replay equivalence over time</h3>
+   <p class=ch-sub>judge pass-rate (accuracy) and cost saved per replay run</p><div id=chartbox></div>
+   <div class=legend><span><i style="background:var(--acc)"></i>judge pass-rate</span><span><i style="background:var(--good)"></i>cost saved</span></div></div>
+   <div class=sect>Recent replay runs</div><div id=rptbl></div>`;
+ M().innerHTML=`<p class=lead>Replay validation answers the strongest version of the question: on <b>your own historical traffic</b>, does the cheaper model produce equivalent outputs? Equivalence is judged, divergences are counted, and the verdict stays hedged.</p>
+  <div class="grid g5">${cards}</div>${body}`;
+ if(runs.length){
+  drawChart("chartbox",runs.slice().reverse().map(r=>({a:r.candidate_pass_rate,c:Math.max(0,-r.cost_delta_pct),x:fmtTime(r.created_at).split(",")[0]})));
+  table("rptbl",[
+   {key:"created_at",label:"When",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
+   {key:"candidate_model",label:"Candidate",html:r=>`<span class=mono>${esc(r.candidate_model)}</span>`},
+   {key:"n_tasks",label:"Turns"},
+   {key:"candidate_pass",label:"Equivalent",html:r=>`${r.candidate_pass==null?"—":r.candidate_pass} / ${r.n_tasks}`},
+   {key:"mcnemar_b",label:"Divergences",html:r=>r.mcnemar_b==null?"—":String(r.mcnemar_b)},
+   {key:"cost_delta_pct",label:"Cost Saved",sort:r=>-r.cost_delta_pct,html:r=>saved(r.cost_delta_pct)},
+   {key:"verdict",label:"Verdict",html:r=>badge(r.verdict)},
+   {key:"file",label:"",nosort:true,html:r=>reportActs(r)},
+  ],runs,{sortKey:"created_at",dir:-1});
+ }
 }
-
-async function renderVersions(){
-  const v=(await getJSON('/api/version-summary'))||{rows:[]};
-  const rows=(v.rows||[]).map(r=>[`<span class=mono>${esc(r.version)}</span>`, r.runs,
-    r.avg_acc_delta_pp==null?'—':r.avg_acc_delta_pp.toFixed(1)+'pp',
-    r.avg_cost_delta_pct==null?'—':r.avg_cost_delta_pct.toFixed(1)+'%',
-    r.regressions>0?`<span class=v-yellow>${r.regressions}</span>`:'0']);
-  M().innerHTML=`<div class=ttl>TokenJam version history</div>${tbl(['tokenjam','runs','avg Δ acc','avg Δ cost','regressions'],rows)}`;
+async function pgDeepEval(){
+ const runs=await loadRuns();const judged=runs.filter(r=>r.benchmark==="judged");
+ const trend=await getJSON("/api/trend?benchmark=judged");
+ const scores=(trend&&trend.rows||[]).map(r=>r.deepeval_score).filter(x=>x!=null);
+ const avgScore=judged.length?avg(judged.map(r=>r.candidate_pass_rate/100)):(scores.length?avg(scores):null);
+ const METRICS=[["Correctness","is the answer factually right vs the reference"],
+  ["Faithfulness","does it stay grounded in provided context"],
+  ["Answer Relevancy","does it actually address the question"],
+  ["Task Completion","did the agent achieve the goal"]];
+ const mcards=METRICS.map(m=>`<div class="card hov"><div style="font-weight:600">${m[0]}</div>
+   <div class=muted style="font-size:12px;margin-top:4px">${m[1]}</div>
+   <div style="margin-top:10px"><span class="badge b-mut">DeepEval metric</span></div></div>`).join("");
+ const left=`<div class=card style="display:flex;gap:18px;align-items:center">
+   <div>${donut(avgScore==null?0:avgScore,"avg judge")}</div>
+   <div><div class=muted style="font-size:12px">AVERAGE JUDGE SCORE</div>
+   <div style="font-size:26px;font-weight:700">${avgScore==null?"—":avgScore.toFixed(2)}</div>
+   <div class=muted style="font-size:12px;margin-top:2px">${judged.length} judged run${judged.length===1?"":"s"} · DeepSeek/DeepEval backend</div></div></div>`;
+ M().innerHTML=`<p class=lead>For open-ended tasks where there's no unit test, equivalence is scored by an LLM judge (DeepEval, DeepSeek-backed). We report the <b>real judge pass-rate</b> — not four invented sub-scores. The metrics below are what the judge layer can run.</p>
+  <div class="grid g2" style="align-items:start">${left}
+   <div class=card><div class=sect style="margin:0 0 8px">How judging works</div>
+   <div class=muted style="font-size:13px">Each judged turn is scored by the configured DeepEval metric against the original's output. A turn "passes" when the score clears the threshold; the run's pass-rate is the share of passing turns, and it flows into the same McNemar verdict as the executable benchmarks.</div></div></div>
+  <div class=sect>Supported evaluation metrics</div><div class="grid g4">${mcards}</div>
+  <div class=sect>Recent judge results</div><div id=detbl></div>`;
+ table("detbl",[
+  {key:"created_at",label:"When",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
+  {key:"candidate_model",label:"Candidate",html:r=>`<span class=mono>${esc(r.candidate_model)}</span>`},
+  {key:"n_tasks",label:"Cases"},
+  {key:"candidate_pass_rate",label:"Judge Pass",html:r=>`<b>${r.candidate_pass_rate}%</b>`},
+  {key:"accuracy_delta_pp",label:"vs Original",html:r=>accDelta(r.accuracy_delta_pp)},
+  {key:"verdict",label:"Verdict",html:r=>badge(r.verdict)},
+  {key:"file",label:"",nosort:true,html:r=>reportActs(r)},
+ ],judged,{sortKey:"created_at",dir:-1,empty:"No LLM-judged runs yet — run tjbench run --benchmark judged."});
 }
-
-async function renderRegressions(){
-  const g=(await getJSON('/api/regressions'))||{rows:[]};
-  if(!(g.rows||[]).length){M().innerHTML='<div class=banner>&#10003; no regressions recorded.</div>';return;}
-  const rows=g.rows.map(r=>[`<span class=mono>${esc(fmtTime(r.created_at))}</span>`, esc(r.benchmark),
-    `<span class=mono>${esc(r.original_model)} → ${esc(r.candidate_model)}</span>`,
-    `<span class=mono>${esc(r.tokenjam_version)}</span>`,
-    r.accuracy_delta_pp==null?'—':r.accuracy_delta_pp.toFixed(1)+'pp', vtag(r.verdict)]);
-  M().innerHTML=`<div class=ttl>Regression timeline</div>${tbl(['when','benchmark','models','tokenjam','Δ acc','verdict'],rows)}`;
+let selTrend=null;
+async function pgTrends(){
+ const cfg=await getJSON("/api/configs");const cfgs=(cfg&&cfg.rows)||[];
+ if(!cfgs.length){M().innerHTML='<div class=empty>No history yet. Run proofs over multiple TokenJam versions to build trends.</div>';return;}
+ const key=c=>c.benchmark+"|"+c.original_model+"|"+c.candidate_model;
+ if(!selTrend||!cfgs.some(c=>key(c)===selTrend))selTrend=key(cfgs[0]);
+ const[bm,orig,cand]=selTrend.split("|");
+ const tr=await getJSON(`/api/trend?benchmark=${encodeURIComponent(bm)}&original=${encodeURIComponent(orig)}&candidate=${encodeURIComponent(cand)}`);
+ const rows=(tr&&tr.rows)||[];const vsum=await getJSON("/api/version-summary");
+ const sel=`<select id=trendSel>`+cfgs.map(c=>`<option value="${esc(key(c))}" ${key(c)===selTrend?"selected":""}>${esc(c.benchmark)}: ${esc(modelOf(c.original_model))}→${esc(modelOf(c.candidate_model))}</option>`).join("")+`</select>`;
+ M().innerHTML=`<p class=lead>Historical analytics from the benchmark database — how a recommendation holds up as TokenJam ships new versions.</p>
+  <div class=tblbar><span class=muted style="font-size:12px">Config</span> ${sel}</div>
+  <div class=chart><h3>Accuracy &amp; cost saved · ${esc(bm)}</h3><p class=ch-sub>by TokenJam version, oldest → newest</p><div id=chartbox></div>
+   <div class=legend><span><i style="background:var(--acc)"></i>candidate accuracy</span><span><i style="background:var(--good)"></i>cost saved</span></div></div>
+  <div class="grid g2" style="margin-top:16px;align-items:start">
+   <div class=chart><h3>DeepEval judge score</h3><p class=ch-sub>where applicable, per version</p><div id=deScore></div></div>
+   <div class=chart><h3>Avg accuracy delta by version</h3><p class=ch-sub>all configs, per TokenJam version</p><div id=verBar></div></div></div>
+  <div class=sect>Per-version detail</div><div id=trtbl></div>`;
+ document.getElementById("trendSel").onchange=e=>{selTrend=e.target.value;pgTrends();};
+ drawChart("chartbox",rows.map(r=>({a:(r.candidate_pass_rate||0)*100,c:Math.max(0,-(r.cost_delta_pct||0)),x:r.tokenjam_version})));
+ const de=rows.filter(r=>r.deepeval_score!=null);
+ drawChart("deScore",de.map(r=>({c:(r.deepeval_score||0)*100,x:r.tokenjam_version})),{single:true});
+ barChart("verBar",((vsum&&vsum.rows)||[]).map(v=>({label:v.version,value:Math.max(0,(v.avg_acc_delta_pp||0)+50),color:"var(--acc)"})));
+ table("trtbl",[
+  {key:"tokenjam_version",label:"TokenJam",html:r=>`<span class=mono>${esc(r.tokenjam_version)}</span>`},
+  {key:"candidate_pass_rate",label:"Cand Pass",sort:r=>r.candidate_pass_rate,html:r=>pct((r.candidate_pass_rate||0)*100)},
+  {key:"accuracy_delta_pp",label:"Δ Acc",html:r=>accDelta(r.accuracy_delta_pp)},
+  {key:"cost_delta_pct",label:"Cost Saved",sort:r=>-(r.cost_delta_pct||0),html:r=>saved(r.cost_delta_pct)},
+  {key:"deepeval_score",label:"DeepEval",html:r=>r.deepeval_score==null?"—":Number(r.deepeval_score).toFixed(2)},
+  {key:"verdict",label:"Verdict",html:r=>badge(r.verdict)},
+ ],rows,{search:false});
 }
-
-async function renderTrends(){
-  const cfg=(await getJSON('/api/configs'))||{rows:[]};
-  const cfgs=cfg.rows||[];
-  if(!cfgs.length){M().innerHTML='<div class=empty>No history yet.</div>';return;}
-  const key=c=>c.benchmark+'|'+c.original_model+'|'+c.candidate_model;
-  if(!selConfig||!cfgs.some(c=>key(c)===selConfig)) selConfig=key(cfgs[0]);
-  const parts=selConfig.split('|'), bm=parts[0], orig=parts[1], cand=parts[2];
-  const tr=(await getJSON(`/api/trend?benchmark=${encodeURIComponent(bm)}&original=${encodeURIComponent(orig)}&candidate=${encodeURIComponent(cand)}`))||{rows:[]};
-  const sel=`<select onchange="selConfig=this.value;renderTrends()">`+
-    cfgs.map(c=>`<option value="${esc(key(c))}" ${key(c)===selConfig?'selected':''}>${esc(c.benchmark)}: ${esc(c.original_model)}→${esc(c.candidate_model)}</option>`).join('')+`</select>`;
-  const rows=(tr.rows||[]).map(r=>[`<span class=mono>${esc(r.tokenjam_version)}</span>`,
-    pct((r.candidate_pass_rate||0)*100),
-    r.accuracy_delta_pp==null?'—':r.accuracy_delta_pp.toFixed(1)+'pp',
-    r.cost_delta_pct==null?'—':r.cost_delta_pct.toFixed(1)+'%',
-    r.deepeval_score==null?'—':(+r.deepeval_score).toFixed(2), vtag(r.verdict)]);
-  M().innerHTML=`<div class=ttl>Trend &nbsp; ${sel}</div>
-    <div class=chart><div id=chartbox></div><div class=legend><span class=lg-acc>&#9632;</span> candidate accuracy
-    &nbsp;&nbsp; <span class=lg-cost>&#9632;</span> cost saved</div></div>
-    ${tbl(['tokenjam','cand pass-rate','Δ acc','Δ cost','deepeval','verdict'],rows)}`;
-  drawChart('chartbox', (tr.rows||[]).map(r=>({a:(r.candidate_pass_rate||0)*100,c:Math.max(0,-(r.cost_delta_pct||0))})));
+let selLB=null;
+async function pgLeaderboards(){
+ const cfg=await getJSON("/api/configs");const benches=[...new Set(((cfg&&cfg.rows)||[]).map(r=>r.benchmark))];
+ if(!benches.length){M().innerHTML='<div class=empty>No history yet.</div>';return;}
+ if(!selLB||!benches.includes(selLB))selLB=benches[0];
+ const lb=await getJSON("/api/leaderboard?benchmark="+encodeURIComponent(selLB));
+ const rows=((lb&&lb.rows)||[]).map((r,i)=>({...r,rank:i+1}));
+ const sel=`<select id=lbSel>`+benches.map(b=>`<option ${b===selLB?"selected":""}>${esc(b)}</option>`).join("")+`</select>`;
+ M().innerHTML=`<p class=lead>Top-performing models by latest pass-rate on a benchmark. Cost is the measured per-run figure from TokenJam's own pricing table.</p>
+  <div class=tblbar><span class=muted style="font-size:12px">Benchmark</span> ${sel}</div><div id=lbtbl></div>`;
+ document.getElementById("lbSel").onchange=e=>{selLB=e.target.value;pgLeaderboards();};
+ table("lbtbl",[
+  {key:"rank",label:"#",html:r=>`<b>#${r.rank}</b>`},
+  {key:"model",label:"Model",html:r=>`<span class=mono>${esc(modelOf(r.model))}</span>`},
+  {key:"provider",label:"Provider",get:r=>provOf(r.model),html:r=>`<span class="badge b-mut">${esc(provOf(r.model))}</span>`},
+  {key:"pass_rate",label:"Pass Rate",sort:r=>r.pass_rate,html:r=>`<b>${pct((r.pass_rate||0)*100)}</b>`},
+  {key:"cost_usd",label:"Cost",sort:r=>r.cost_usd==null?Infinity:r.cost_usd,html:r=>r.cost_usd==null?"—":money(r.cost_usd)},
+  {key:"tokenjam_version",label:"TokenJam",html:r=>`<span class=mono>${esc(r.tokenjam_version)}</span>`},
+ ],rows,{});
 }
-
-async function renderReports(){
-  const runs=(await getJSON('/api/runs'))||[];
-  const rows=runs.map(r=>[`<span class=mono>${esc(fmtTime(r.created_at))}</span>`, esc(r.benchmark),
-    `<span class=mono>${esc(r.tokenjam_version)}</span>`, vtag(r.verdict),
-    `<a class=btn href="/report/${encodeURIComponent(r.file)}" target=_blank>open report</a>`]);
-  M().innerHTML=`<div class=ttl>Reports</div>${tbl(['when','benchmark','tokenjam','verdict','report'],rows)}`;
+async function pgProviders(){
+ const p=await getJSON("/api/providers");const rowsRaw=(p&&p.rows)||[];
+ const groups={};rowsRaw.forEach(r=>{const pr=provOf(r.model);const g=groups[pr]=groups[pr]||{models:0,runs:0,acc:[],cost:[]};
+  g.models++;g.runs+=r.runs||0;if(r.avg_accuracy!=null)g.acc.push(r.avg_accuracy);if(r.avg_cost_usd!=null)g.cost.push(r.avg_cost_usd);});
+ const KNOWN=[["anthropic","Anthropic"],["openai","OpenAI"],["deepseek","DeepSeek"],["google","Gemini"],["gemini","Gemini"],["groq","Groq"],["openrouter","OpenRouter"]];
+ const seen=new Set();let cards="";
+ KNOWN.forEach(([k,label])=>{if(seen.has(label))return;seen.add(label);
+  const g=groups[k]||(k==="google"&&groups["gemini"])||(k==="gemini"&&groups["google"]);
+  const has=g&&g.models;
+  cards+=`<div class="card hov"><div style="display:flex;justify-content:space-between;align-items:center">
+    <div style="font-weight:650;font-size:15px">${esc(label)}</div>${has?'<span class="badge b-good">tested</span>':'<span class="badge b-mut">not tested</span>'}</div>
+   <div class="grid g2" style="gap:10px;margin-top:14px">
+    <div><div style="color:var(--mut);font-size:11px">MODELS</div><div style="font-size:18px;font-weight:700">${has?g.models:"—"}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">RUNS</div><div style="font-size:18px;font-weight:700">${has?g.runs:"—"}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">AVG ACCURACY</div><div style="font-size:16px;font-weight:700">${has?pct(avg(g.acc)*100):"—"}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">AVG COST</div><div style="font-size:15px;font-weight:700">${has?money(avg(g.cost)):"—"}</div></div>
+   </div></div>`;});
+ M().innerHTML=`<p class=lead>Provider-agnostic by design — the same proof pipeline runs across every OpenAI-compatible and native provider. Cards show what's been benchmarked so far.</p>
+  <div class="grid auto">${cards}</div>
+  <div class=sect>Per-model matrix</div><div id=pmtbl></div>`;
+ table("pmtbl",[
+  {key:"model",label:"Model",html:r=>`<span class=mono>${esc(r.model)}</span>`},
+  {key:"provider",label:"Provider",get:r=>provOf(r.model),html:r=>`<span class="badge b-mut">${esc(provOf(r.model))}</span>`},
+  {key:"runs",label:"Runs"},
+  {key:"benchmarks",label:"Benchmarks"},
+  {key:"avg_accuracy",label:"Avg Accuracy",sort:r=>r.avg_accuracy,html:r=>pct((r.avg_accuracy||0)*100)},
+  {key:"avg_cost_usd",label:"Avg Cost",sort:r=>r.avg_cost_usd==null?Infinity:r.avg_cost_usd,html:r=>r.avg_cost_usd==null?"—":money(r.avg_cost_usd)},
+ ],rowsRaw,{});
 }
-
-const RENDER={overview:renderOverview,leaderboards:renderLeaderboards,providers:renderProviders,
-  versions:renderVersions,regressions:renderRegressions,trends:renderTrends,reports:renderReports};
-function currentView(){
-  let h=location.hash||''; if(h.indexOf('#/')===0)h=h.slice(2); else if(h.indexOf('#')===0)h=h.slice(1);
-  h=h.split('?')[0]; return RENDER[h]?h:'overview';
+async function pgVersions(){
+ const v=await getJSON("/api/version-summary");const rows=(v&&v.rows)||[];
+ M().innerHTML=`<p class=lead>TokenJam changes constantly. This is the guard: every released version re-benchmarked, so a recommendation that quietly regresses in a new version is caught.</p>
+  <div class=chart><h3>Average cost saved by version</h3><p class=ch-sub>mean % saved across all configs</p><div id=verBar></div></div>
+  <div class=sect>Version history</div><div id=vtbl></div>`;
+ barChart("verBar",rows.map(r=>({label:r.version,value:Math.max(0,-(r.avg_cost_delta_pct||0)),color:"var(--good)"})));
+ table("vtbl",[
+  {key:"version",label:"Version",html:r=>`<span class=mono>${esc(r.version)}</span>`},
+  {key:"runs",label:"Runs"},
+  {key:"avg_acc_delta_pp",label:"Δ Accuracy",sort:r=>r.avg_acc_delta_pp,html:r=>r.avg_acc_delta_pp==null?"—":accDelta(r.avg_acc_delta_pp)},
+  {key:"avg_cost_delta_pct",label:"Cost Saved",sort:r=>-(r.avg_cost_delta_pct||0),html:r=>r.avg_cost_delta_pct==null?"—":saved(r.avg_cost_delta_pct)},
+  {key:"regressions",label:"Regressions",html:r=>r.regressions>0?`<span class="badge b-bad">${r.regressions}</span>`:'<span class="badge b-good">0</span>'},
+ ],rows,{});
 }
-function renderNav(v){
-  document.getElementById('nav').innerHTML=VIEWS.map(p=>
-    `<a href="#/${p[0]}" class="navlink ${p[0]===v?'active':''}">${p[1]}</a>`).join('');
+async function pgRegressions(){
+ const g=await getJSON("/api/regressions");const rows=(g&&g.rows)||[];
+ if(!rows.length){M().innerHTML=`<div class="banner ok"><div class=bi>✓</div><div><b>No regressions recorded.</b>
+   <div class=bsub>No config has shown a statistically significant pass-rate drop across any benchmarked TokenJam version.</div></div></div>`;return;}
+ M().innerHTML=`<p class=lead>Only the runs that matter: configs where the cheaper model showed a statistically significant accuracy drop. Triage these before trusting the recommendation.</p><div id=rgtbl></div>`;
+ table("rgtbl",[
+  {key:"created_at",label:"When",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
+  {key:"benchmark",label:"Benchmark"},
+  {key:"original_model",label:"Original → Candidate",html:r=>`<span class=mono>${esc(modelOf(r.original_model))} → ${esc(modelOf(r.candidate_model))}</span>`},
+  {key:"tokenjam_version",label:"TokenJam",html:r=>`<span class=mono>${esc(r.tokenjam_version)}</span>`},
+  {key:"accuracy_delta_pp",label:"Regression",sort:r=>r.accuracy_delta_pp,html:r=>r.accuracy_delta_pp==null?"—":accDelta(r.accuracy_delta_pp)},
+  {key:"verdict",label:"Verdict",html:r=>badge(r.verdict)},
+ ],rows,{sortKey:"created_at",dir:-1});
 }
+async function pgReports(){
+ const runs=await loadRuns();
+ M().innerHTML=`<p class=lead>Every version-stamped proof artifact. Open the rendered HTML report, view raw JSON, download it, or remove the file (the historical record stays in the database).</p><div id=rptbl></div>`;
+ table("rptbl",[
+  {key:"created_at",label:"Date",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
+  {key:"benchmark",label:"Benchmark",html:r=>esc(r.benchmark)+(r.mock?' <span class=tag>mock</span>':'')},
+  {key:"original_model",label:"Original → Candidate",html:r=>`<span class=mono>${esc(modelOf(r.original_model))} → ${esc(modelOf(r.candidate_model))}</span>`},
+  {key:"tokenjam_version",label:"TokenJam",html:r=>`<span class=mono>${esc(r.tokenjam_version)}</span>`},
+  {key:"verdict",label:"Verdict",html:r=>badge(r.verdict)},
+  {key:"file",label:"Artifact",nosort:true,html:r=>`<div class=acts>
+    <a class=lnk href="/report/${encodeURIComponent(r.file)}" target=_blank>HTML</a>
+    <a class=lnk href="/raw/${encodeURIComponent(r.file)}" target=_blank>JSON</a>
+    <a class=lnk href="/raw/${encodeURIComponent(r.file)}?download=1">Download</a>
+    <button class="lnk danger" onclick="delReport('${encodeURIComponent(r.file)}')">Delete</button></div>`},
+ ],runs,{sortKey:"created_at",dir:-1});
+}
+async function delReport(file){
+ if(!confirm("Delete this proof artifact?\n\nThe file is removed from results/, but its row stays in the history database."))return;
+ try{const r=await fetch("/api/report/"+file,{method:"DELETE"});if(r.ok)pgReports();else alert("Delete failed.");}
+ catch(e){alert("Delete failed.");}
+}
+async function pgCI(){
+ const runs=await loadRuns();const live=runs.filter(r=>!r.mock);
+ const cards=[
+  statCard(runs.length,"Indexed Runs","local results/"),
+  statCard(live.length,"Live Pipeline Runs","real-key proofs"),
+  statCard("06:00 UTC","Nightly Schedule","benchmark.yml cron"),
+  statCard(runs.some(r=>BAD.has(r.verdict))?"attention":"green","Latest Status",runs.some(r=>BAD.has(r.verdict))?"a config regressed":"no regressions"),
+ ].join("");
+ M().innerHTML=`<p class=lead>The continuous-benchmark pipeline runs an always-on offline gate on every push and a nightly live run against the latest TokenJam release. Full GitHub Actions logs live in the repo's Actions tab; below is the locally indexed run history.</p>
+  <div class="grid g4">${cards}</div>
+  <div class="grid g2" style="margin-top:18px;align-items:start">
+   <div class=card><div class=sect style="margin:0 0 8px">Workflows</div>
+    <div class=set-row><div><div class=k>ci</div><div class=d>lint + tests + offline proof smoke · on push / PR</div></div><span class="badge b-good">always-on</span></div>
+    <div class=set-row><div><div class=k>benchmark</div><div class=d>nightly + manual · live if DEEPSEEK_API_KEY secret set</div></div><span class="badge b-mut">key-gated</span></div>
+   </div>
+   <div class=card><div class=sect style="margin:0 0 8px">Pipeline posture</div>
+    <div class=muted style="font-size:13px">Offline benchmarks run with no keys and no spend, so the gate is deterministic. Live benchmarks are opt-in and key-gated, and every artifact is version-stamped with the exact TokenJam build it tested — so this history stays honest across releases.</div></div></div>
+  <div class=sect>Locally indexed pipeline runs</div><div id=citbl></div>`;
+ table("citbl",[
+  {key:"created_at",label:"When",html:r=>`<span class=mono>${esc(fmtTime(r.created_at))}</span>`},
+  {key:"benchmark",label:"Benchmark"},
+  {key:"tokenjam_version",label:"Version",html:r=>`<span class=mono>${esc(r.tokenjam_version)}</span>`},
+  {key:"mock",label:"Mode",get:r=>r.mock?"offline":"live",html:r=>r.mock?'<span class="badge b-mut">offline</span>':'<span class="badge b-good">live</span>'},
+  {key:"verdict",label:"Result",html:r=>badge(r.verdict)},
+  {key:"file",label:"Artifact",nosort:true,html:r=>reportActs(r)},
+ ],runs,{sortKey:"created_at",dir:-1});
+}
+async function pgSettings(){
+ const cfg=await getJSON("/api/configs");const hist=await getJSON("/api/history");
+ const benches=[...new Set(((cfg&&cfg.rows)||[]).map(r=>r.benchmark))];
+ const refresh=PREF.get("refresh","4");const theme=PREF.get("theme","dark");
+ const defB=PREF.get("defaultBenchmark","");const defP=PREF.get("defaultProvider","");
+ const provOpts=["","anthropic","openai","deepseek","google","groq","openrouter"];
+ M().innerHTML=`<p class=lead>Dashboard preferences. Stored locally in your browser — nothing is sent anywhere.</p>
+  <div class=card>
+   <div class=set-row><div><div class=k>Theme</div><div class=d>dark or light appearance</div></div>
+    <select id=setTheme>${["dark","light"].map(t=>`<option ${t===theme?"selected":""}>${t}</option>`).join("")}</select></div>
+   <div class=set-row><div><div class=k>Auto-refresh</div><div class=d>Overview live-poll interval (seconds)</div></div>
+    <select id=setRefresh>${["2","4","8","15","30","0"].map(s=>`<option ${s===refresh?"selected":""}>${s==="0"?"off":s}</option>`).join("")}</select></div>
+   <div class=set-row><div><div class=k>Default benchmark</div><div class=d>pre-selected on Leaderboards</div></div>
+    <select id=setBench><option value="">(latest)</option>${benches.map(b=>`<option ${b===defB?"selected":""}>${esc(b)}</option>`).join("")}</select></div>
+   <div class=set-row><div><div class=k>Default provider</div><div class=d>highlight on Provider Comparison</div></div>
+    <select id=setProv>${provOpts.map(p=>`<option ${p===defP?"selected":""}>${p||"(none)"}</option>`).join("")}</select></div>
+   <div class=set-row><div><div class=k>Export directory</div><div class=d>where proof artifacts &amp; reports are served from</div></div>
+    <span class=mono>results/</span></div>
+   <div class=set-row><div><div class=k>History database</div><div class=d>${hist&&hist.available?(hist.count+" runs · "+((hist.versions||[]).length)+" versions"):"not created yet"}</div></div>
+    <span class=mono>results/history.duckdb</span></div>
+   <div class=set-row><div><div class=k>Report retention</div><div class=d>artifacts are kept until deleted on the Reports page</div></div>
+    <span class="badge b-mut">manual</span></div>
+  </div>`;
+ document.getElementById("setTheme").onchange=e=>{PREF.set("theme",e.target.value);applyTheme();};
+ document.getElementById("setRefresh").onchange=e=>{PREF.set("refresh",e.target.value==="off"?"0":e.target.value);startTimer();};
+ document.getElementById("setBench").onchange=e=>PREF.set("defaultBenchmark",e.target.value);
+ document.getElementById("setProv").onchange=e=>PREF.set("defaultProvider",e.target.value==="(none)"?"":e.target.value);
+}
+// ---- router ----------------------------------------------------------------
+const PAGES={overview:pgOverview,benchmarks:pgBenchmarks,scenarios:pgScenarios,replay:pgReplay,
+ deepeval:pgDeepEval,trends:pgTrends,leaderboards:pgLeaderboards,providers:pgProviders,
+ versions:pgVersions,regressions:pgRegressions,reports:pgReports,ci:pgCI,settings:pgSettings};
+const AUTO=new Set(["overview","replay","ci"]);
+function curView(){let h=location.hash||"";h=h.replace(/^#\/?/,"").split("?")[0];return PAGES[h]?h:"overview";}
+function buildNav(){document.getElementById("nav").innerHTML=NAV.map(n=>
+  `<a href="#/${n[0]}" data-v="${n[0]}"><span class=ic>${n[2]}</span>${n[1]}</a>`).join("");}
+function markNav(v){document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.v===v));}
 async function route(){
-  const v=currentView(); renderNav(v);
-  document.getElementById('updated').textContent='updated '+new Date().toLocaleTimeString();
-  try{ await RENDER[v](); }catch(e){ M().innerHTML='<div class=empty>error loading view</div>'; }
+ const v=curView();markNav(v);
+ document.getElementById("title").textContent=LABEL[v];
+ try{await PAGES[v]();}catch(e){M().innerHTML='<div class=empty>error loading view</div>';}
+ setCtx();document.getElementById("updated").textContent="updated "+new Date().toLocaleTimeString();
 }
-window.addEventListener('hashchange',route);
-route(); setInterval(route,4000);
+async function setCtx(){
+ const hist=await getJSON("/api/history");
+ const ver=(hist&&hist.versions&&hist.versions.slice(-1)[0])||"";
+ const chip=document.getElementById("ctxchip");
+ chip.textContent=ver?("tokenjam "+ver):(hist&&hist.count?hist.count+" runs":"");
+ const vEl=document.getElementById("ver");if(vEl&&ver)vEl.textContent="tj "+ver;
+}
+// ---- theme + timer ---------------------------------------------------------
+function applyTheme(){document.documentElement.setAttribute("data-theme",PREF.get("theme","dark"));}
+let _timer=null;
+function startTimer(){if(_timer)clearInterval(_timer);const s=parseInt(PREF.get("refresh","4"),10);
+ if(s>0)_timer=setInterval(()=>{if(!document.hidden&&AUTO.has(curView()))route();},s*1000);}
+document.getElementById("themeBtn").onclick=()=>{PREF.set("theme",PREF.get("theme","dark")==="dark"?"light":"dark");applyTheme();};
+window.addEventListener("hashchange",route);
+applyTheme();buildNav();route();startTimer();
 </script>
-</div></body></html>"""
+</body></html>"""
+
+# The keep-alive timer in the SPA intentionally re-renders only AUTO pages
+# (Overview / Replay / CI) so interactive table sort + search state on the other
+# pages survives the live poll — mirroring TokenJam Lens's asymmetric refresh.
