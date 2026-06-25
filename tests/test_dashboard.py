@@ -42,3 +42,5 @@ def test_dashboard_html_is_offline():
         assert bad not in html
     # It polls the local API for realtime updates.
     assert "/api/runs" in html and "setInterval" in html
+    # ...and draws an inline-SVG accuracy/cost trend (no charting lib).
+    assert "drawChart" in html and "chartbox" in html and "polyline" in html

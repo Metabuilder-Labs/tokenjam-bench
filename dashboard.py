@@ -134,12 +134,20 @@ a.btn{color:#58a6ff;text-decoration:none;border:1px solid #1f6feb55;border-radiu
 a.btn:hover{background:#1f6feb22}
 .tag{font-size:11px;color:var(--mut);border:1px solid var(--line);border-radius:10px;padding:1px 7px}
 .empty{color:var(--mut);padding:24px;text-align:center}
+.chart{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 16px;margin-bottom:16px}
+.chart h3{margin:0 0 6px;font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em}
+.legend{font-size:12px;color:var(--mut);margin-top:4px}
+.lg-acc{color:#58a6ff}.lg-cost{color:#3fb950}
 </style></head><body><div class=wrap>
 <h1>tokenjam-bench &middot; proof dashboard</h1>
 <p class=sub><span class=live></span>live &middot; auto-refresh every 4s &middot;
 <span id=updated></span></p>
 <div class=tiles id=tiles></div>
 <div id=banner></div>
+<div class=chart><h3>Trend &middot; accuracy &amp; cost saved over time</h3>
+<div id=chartbox><div class=empty>no runs yet</div></div>
+<div class=legend><span class=lg-acc>&#9632;</span> candidate accuracy &nbsp;&nbsp;
+<span class=lg-cost>&#9632;</span> cost saved (vs original)</div></div>
 <table><thead><tr>
 <th>when</th><th>benchmark</th><th>original &rarr; candidate</th><th>tokenjam</th>
 <th>n</th><th>accuracy</th><th>&Delta; cost</th><th>verdict</th><th></th>
@@ -167,6 +175,7 @@ async function tick(){
     b.innerHTML='&#9888; '+mtx.regressions_found+' cross-version regression(s) detected across TokenJam versions.';}
   else if(runs.length){b.className='banner';b.innerHTML='&#10003; no cross-version regressions.';}
   else{b.innerHTML='';}
+  drawChart(runs);
   // rows
   const tb=document.getElementById('rows');
   if(!runs.length){tb.innerHTML='<tr><td colspan=9 class=empty>No proof artifacts yet. Run <span class=mono>tjbench run … --html</span>.</td></tr>';return;}
@@ -186,6 +195,27 @@ async function tick(){
   }).join('');
 }
 function tile(v,l){return `<div class=tile><div class=v>${esc(v)}</div><div class=l>${esc(l)}</div></div>`;}
+function drawChart(runs){
+  const box=document.getElementById('chartbox');
+  const pts=runs.slice().reverse();              // chronological: oldest left
+  if(!pts.length){box.innerHTML='<div class=empty>no runs yet</div>';return;}
+  const W=1040,H=150,padL=30,padR=10,padT=10,padB=14,n=pts.length;
+  const iw=W-padL-padR, ih=H-padT-padB;
+  const X=i=> n<=1? padL+iw/2 : padL+(i/(n-1))*iw;
+  const Y=v=> padT+(1-Math.max(0,Math.min(100,v))/100)*ih;       // v is a percent
+  const series=(get,color)=>{
+    const pl=pts.map((r,i)=>`${X(i).toFixed(1)},${Y(get(r)).toFixed(1)}`).join(' ');
+    const dots=pts.map((r,i)=>`<circle cx=${X(i).toFixed(1)} cy=${Y(get(r)).toFixed(1)} r=3 fill=${color}/>`).join('');
+    return `<polyline points="${pl}" fill=none stroke=${color} stroke-width=2/>${dots}`;
+  };
+  let grid='';[0,50,100].forEach(v=>{const y=Y(v).toFixed(1);
+    grid+=`<line x1=${padL} y1=${y} x2=${W-padR} y2=${y} stroke=#30363d stroke-width=1/>`+
+          `<text x=2 y=${(+y+3).toFixed(1)} fill=#8b949e font-size=10>${v}</text>`;});
+  const acc=series(r=>r.candidate_pass_rate,'#58a6ff');
+  const cost=series(r=>Math.max(0,-r.cost_delta_pct),'#3fb950');
+  box.innerHTML=`<svg width=100% viewBox="0 0 ${W} ${H}" preserveAspectRatio=none `+
+    `style="max-width:100%;height:150px">${grid}${cost}${acc}</svg>`;
+}
 tick();setInterval(tick,4000);
 </script>
 </div></body></html>"""
