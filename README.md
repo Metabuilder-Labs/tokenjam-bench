@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://tokenjam.dev/icon.svg" alt="TokenJam" width="72" height="72">
+<img src="Assets/ChatGPT Image Jun 25, 2026, 05_19_19 PM.png" alt="TokenJam" width="300" height="300">
 
 ### tokenjam-bench
 
