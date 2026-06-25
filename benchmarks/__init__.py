@@ -39,6 +39,9 @@ def get_agent_benchmark(name: str):
     if name == "real-scenarios":
         from benchmarks.real_scenarios import RealScenariosBenchmark
         return RealScenariosBenchmark()
+    if name in _SCENARIO_SUITE_NAMES:  # P1 Real Scenario Library
+        from benchmarks.scenario_suites import get_scenario_suite
+        return get_scenario_suite(name)
     raise ValueError(
         f"Unknown agent benchmark '{name}'. Available: {AGENT_BENCHMARK_NAMES}"
     )
