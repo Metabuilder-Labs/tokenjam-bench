@@ -28,17 +28,14 @@ statement and test patches directly rather than cloning full repos.
 from __future__ import annotations
 
 import json
-import os
 import re
-import subprocess
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from benchmarks.agent_base import AgentBenchmark, AgentTask
 from benchmarks.base import ScoreResult
-from agents.tools import Tool, ToolRegistry, ToolResult
+from agents.tools import Tool, ToolRegistry
 from agents.trace import AgentTrace
 
 
@@ -321,10 +318,6 @@ Start by reading the problem statement and exploring the codebase.
 
     def _score_mock(self, task: SWEBenchTask, trace: AgentTrace) -> ScoreResult:
         """Deterministic mock scoring for testing."""
-        # Hash the task_id to get deterministic pass/fail
-        import hashlib
-        h = hashlib.md5(task.task_id.encode()).hexdigest()
-        
         # Check if agent made the expected tool calls
         tool_calls = []
         for turn in trace.turns:

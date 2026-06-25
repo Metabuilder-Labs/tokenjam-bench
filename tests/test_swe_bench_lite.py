@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 
 from benchmarks.swe_bench_lite import SWEBenchLiteBenchmark, SWEBenchTask
 from agents.trace import AgentTrace, TurnRecord, ToolCallRecord
