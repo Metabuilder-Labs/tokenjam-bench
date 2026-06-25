@@ -222,6 +222,23 @@ def cmd_report(artifact: str, out: str | None, open_browser: bool) -> None:
         webbrowser.open(path.as_uri())
 
 
+@cli.command("serve")
+@click.option("--dir", "directory", default="results", show_default=True,
+              help="Directory of proof artifacts to serve.")
+@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option("--port", default=7392, show_default=True)
+@click.option("--open", "open_browser", is_flag=True, help="Open the dashboard in a browser.")
+def cmd_serve(directory: str, host: str, port: int, open_browser: bool) -> None:
+    """Start the live proof dashboard (offline, auto-refreshing)."""
+    from dashboard import serve
+
+    if open_browser:
+        import threading
+        import webbrowser
+        threading.Timer(0.6, lambda: webbrowser.open(f"http://{host}:{port}/")).start()
+    serve(directory=directory, host=host, port=port)
+
+
 @cli.command("matrix")
 @click.option("--dir", "directory", default="results", show_default=True,
               help="Directory of version-stamped proof artifacts to compare.")
