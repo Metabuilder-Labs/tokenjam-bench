@@ -1,12 +1,14 @@
 <div align="center">
 
-<img src="Assets/ChatGPT Image Jun 25, 2026, 05_19_19 PM.png" alt="TokenJam" width="300" height="300">
+<picture>
+  <img src="Assets/ChatGPT Image Jun 25, 2026, 05_19_19 PM.png" alt="tokenjam-bench" width="200">
+</picture>
 
 ### tokenjam-bench
 
 Proves the effect of TokenJam's recommendations on cost AND accuracy using executable benchmarks as objective ground truth.
 
-[![CI](https://github.com/Metabuilder-Labs/tokenjam-bench/actions/workflows/ci.yml/badge.svg)](https://github.com/Metabuilder-Labs/tokenjam-bench/actions)
+[![CI](https://github.com/HoomanDigital/tokenjam-benchmark/actions/workflows/ci.yml/badge.svg)](https://github.com/HoomanDigital/tokenjam-benchmark/actions)
 [![Tests](https://img.shields.io/badge/tests-75_passing-brightgreen?labelColor=0d1117)](tests/)
 [![Python](https://img.shields.io/badge/python-3.10%2B-3d8eff?labelColor=0d1117)](pyproject.toml)
 [![TokenJam](https://img.shields.io/badge/tokenjam-%3E%3D0.5-3d8eff?labelColor=0d1117)](https://pypi.org/project/tokenjam/)
