@@ -317,20 +317,31 @@ a{color:inherit;text-decoration:none}
  flex-direction:column;background:var(--bg2);border-right:1px solid var(--line);padding:18px 14px}
 .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 16px;font-weight:700;font-size:15px}
 .brand .glyph{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;
- background:var(--chip);border:1px solid var(--line2);font-size:16px}
+ background:var(--chip);border:1px solid var(--line2);color:var(--acc)}
+.brand .glyph svg{width:17px;height:17px}
 .brand small{display:block;color:var(--mut);font-weight:500;font-size:11px;letter-spacing:.04em}
-.nav{display:flex;flex-direction:column;gap:2px;overflow:auto;margin-top:4px}
-.nav a{display:flex;align-items:center;gap:11px;padding:8px 10px;border-radius:9px;color:var(--mut);
- font-size:13.5px;transition:background .15s,color .15s;cursor:pointer}
-.nav a .ic{width:18px;text-align:center;font-size:14px;opacity:.95}
+.nav{display:flex;flex-direction:column;gap:1px;overflow:auto;margin-top:2px}
+.navsec{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+ color:var(--mut2);padding:15px 10px 6px}
+.nav a{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:10px;color:var(--mut);
+ font-size:13.5px;font-weight:500;transition:background .15s,color .15s;cursor:pointer}
+.nav a .ic{width:18px;height:18px;flex:0 0 auto;display:grid;place-items:center;color:var(--mut2)}
+.nav a .ic svg{width:18px;height:18px}
 .nav a:hover{background:var(--panel);color:var(--fg)}
-.nav a.active{background:var(--chip);color:var(--fg)}
-.nav a.active .ic{filter:none}
-.side-foot{margin-top:auto;padding-top:14px;border-top:1px solid var(--line);
- display:flex;align-items:center;justify-content:space-between;color:var(--mut);font-size:12px}
+.nav a:hover .ic{color:var(--fg)}
+.nav a.active{background:var(--acc-d);color:#fff;font-weight:600;box-shadow:0 4px 14px color-mix(in srgb,var(--acc-d) 30%,transparent)}
+.nav a.active .ic{color:#fff}
+.side-foot{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);
+ display:flex;flex-direction:column;gap:8px}
+.connpill{display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
+ border-radius:10px;padding:9px 11px;color:var(--mut);font-size:12px}
+.cdot{width:7px;height:7px;border-radius:50%;background:var(--good);flex:0 0 auto;
+ box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 18%,transparent)}
+.foot-row{display:flex;align-items:center;justify-content:space-between;color:var(--mut2);font-size:11.5px;padding:0 2px}
 .tbtn{cursor:pointer;border:1px solid var(--line2);background:var(--panel);color:var(--mut);
- border-radius:8px;padding:5px 9px;font-size:12px;transition:.15s}
+ border-radius:8px;padding:5px 10px;font-size:11.5px;transition:.15s;display:inline-flex;align-items:center;gap:6px}
 .tbtn:hover{color:var(--fg);border-color:var(--acc)}
+.tbtn svg{width:13px;height:13px}
 /* main */
 .main{flex:1;min-width:0;display:flex;flex-direction:column;background:
  radial-gradient(1200px 600px at 70% -10%,rgba(110,155,255,.05),transparent 60%)}
@@ -376,7 +387,8 @@ select:focus,input.in:focus,button:focus{outline:none;border-color:var(--acc)}
 /* banners */
 .banner{display:flex;align-items:center;gap:12px;border-radius:var(--radius);padding:14px 18px;
  border:1px solid var(--line);background:var(--panel);font-size:14px}
-.banner .bi{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:16px;flex:0 0 auto}
+.banner .bi{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto}
+.banner .bi svg{width:18px;height:18px}
 .banner.ok{border-color:color-mix(in srgb,var(--good) 40%,var(--line))}
 .banner.ok .bi{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
 .banner.warn{border-color:color-mix(in srgb,var(--warn) 40%,var(--line))}
@@ -452,11 +464,12 @@ button.lnk.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)
 </style></head><body>
 <div class=app>
  <aside class=side>
-  <div class=brand><span class=glyph>&#129514;</span><div>TokenJam Bench<small>Benchmark &amp; Evaluation</small></div></div>
+  <div class=brand><span class=glyph><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6" /><path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3" /><path d="M7 14h10" /></svg></span><div>TokenJam Bench<small>Benchmark &amp; Evaluation</small></div></div>
   <nav class=nav id=nav></nav>
   <div class=side-foot>
-   <span id=ver>v&middot;&middot;&middot;</span>
-   <span class=tbtn id=themeBtn>&#9789; Theme</span>
+   <div class=connpill><span class=cdot></span><span>Local &middot; serving results/</span></div>
+   <div class=foot-row><span id=ver>tj &middot;&middot;&middot;</span>
+    <span class=tbtn id=themeBtn><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>Theme</span></div>
   </div>
  </aside>
  <main class=main>
@@ -472,15 +485,36 @@ button.lnk.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)
 </div>
 <script>
 "use strict";
-// ---- nav model -------------------------------------------------------------
+// ---- nav model (grouped sections + monochrome line icons) ------------------
 const NAV=[
- ["overview","Overview","🏠"],["benchmarks","Benchmarks","📊"],
- ["scenarios","Scenario Library","🤖"],["replay","Replay Validation","🔁"],
- ["deepeval","DeepEval","🧠"],["trends","Trends","📈"],
- ["leaderboards","Leaderboards","🏆"],["providers","Provider Comparison","⚖️"],
- ["versions","Version Comparison","🔄"],["regressions","Regression Center","📉"],
- ["reports","Reports","📄"],["ci","CI History","⚙️"],["settings","Settings","⚙️"]];
-const LABEL=Object.fromEntries(NAV.map(n=>[n[0],n[1]]));
+ ["Platform",[["overview","Overview"],["benchmarks","Benchmarks"],
+   ["scenarios","Scenario Library"],["replay","Replay Validation"]]],
+ ["Evaluation",[["deepeval","DeepEval"],["trends","Trends"],["leaderboards","Leaderboards"],
+   ["providers","Provider Comparison"],["versions","Version Comparison"],["regressions","Regression Center"]]],
+ ["Workspace",[["reports","Reports"],["ci","CI History"],["settings","Settings"]]]];
+const LABEL=Object.fromEntries(NAV.flatMap(g=>g[1]));
+// Feather/Lucide-style stroke icons (currentColor, quoted attrs so /> self-closes)
+const _IC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">';
+const ICONS={
+ overview:_IC+'<rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>',
+ benchmarks:_IC+'<line x1="6" y1="20" x2="6" y2="14" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="18" y1="20" x2="18" y2="9" /></svg>',
+ scenarios:_IC+'<rect x="4" y="8" width="16" height="12" rx="2" /><path d="M12 8V5" /><circle cx="9" cy="14" r="1" /><circle cx="15" cy="14" r="1" /><path d="M2 14h2" /><path d="M20 14h2" /></svg>',
+ replay:_IC+'<path d="M21 12a9 9 0 1 1-3-6.7L21 8" /><path d="M21 3v5h-5" /></svg>',
+ deepeval:_IC+'<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z" /><path d="m9 12 2 2 4-4" /></svg>',
+ trends:_IC+'<path d="M3 3v18h18" /><path d="m19 9-5 5-4-4-3 3" /></svg>',
+ leaderboards:_IC+'<circle cx="12" cy="8" r="6" /><path d="M15.5 12.9 17 22l-5-3-5 3 1.5-9.1" /></svg>',
+ providers:_IC+'<rect x="4" y="3" width="6" height="18" rx="1" /><rect x="14" y="3" width="6" height="18" rx="1" /></svg>',
+ versions:_IC+'<line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" /></svg>',
+ regressions:_IC+'<path d="M22 17 13.5 8.5l-5 5L2 7" /><path d="M16 17h6v-6" /></svg>',
+ reports:_IC+'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M16 13H8" /><path d="M16 17H8" /><path d="M10 9H8" /></svg>',
+ ci:_IC+'<circle cx="12" cy="12" r="3" /><line x1="3" y1="12" x2="9" y2="12" /><line x1="15" y1="12" x2="21" y2="12" /></svg>',
+ settings:_IC+'<circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>'};
+// banner glyphs (line icons, currentColor inherits the banner-variant color)
+const BIc='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">';
+const BI={ok:BIc+'<path d="M20 6 9 17l-5-5" /></svg>',
+ warn:BIc+'<path d="M10.3 3.3 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.3a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>',
+ info:_IC+'<path d="M9 3h6" /><path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3" /><path d="M7 14h10" /></svg>',
+ replay:ICONS.replay};
 // ---- verdict semantics -----------------------------------------------------
 const GOOD=new Set(["no_significant_regression","quality_signals_improved"]);
 const BAD=new Set(["significant_regression"]);
@@ -630,11 +664,11 @@ async function pgOverview(){
  const anyBad=runs.some(r=>BAD.has(r.verdict))||(mtx&&mtx.regressions_found>0);
  const anyWarn=runs.some(r=>WARN.has(r.verdict));
  let banner;
- if(!runs.length)banner=`<div class="banner"><div class=bi>🔬</div><div><b>No proofs yet.</b>
+ if(!runs.length)banner=`<div class="banner"><div class=bi>${BI.info}</div><div><b>No proofs yet.</b>
    <div class=bsub>Run <span class=mono>tjbench run</span> to produce your first evidence-backed validation.</div></div></div>`;
- else if(anyBad)banner=`<div class="banner bad"><div class=bi>⚠</div><div><b>Regression detected.</b>
+ else if(anyBad)banner=`<div class="banner bad"><div class=bi>${BI.warn}</div><div><b>Regression detected.</b>
    <div class=bsub>At least one config shows a statistically significant pass-rate drop. See Regression Center.</div></div></div>`;
- else banner=`<div class="banner ok"><div class=bi>✓</div><div><b>No significant regressions.</b>
+ else banner=`<div class="banner ok"><div class=bi>${BI.ok}</div><div><b>No significant regressions.</b>
    <div class=bsub>Every analyzed config is within statistical noise of its original on the measured benchmarks.${anyWarn?" Some configs are flagged to review.":""}</div></div></div>`;
  // timeline
  const tl=runs.slice(0,7).map(r=>`<div class=tl-item><div class=tl-rail>
@@ -734,7 +768,7 @@ async function pgReplay(){
   statCard((()=>{const v=avg(runs.map(r=>-r.cost_delta_pct));return v==null?"—":"−"+Math.round(v)+"%";})(),"Avg Cost Saved","vs historical spend"),
  ].join("");
  let body;
- if(!runs.length)body=`<div class="banner"><div class=bi>🔁</div><div><b>No replay runs yet.</b>
+ if(!runs.length)body=`<div class="banner"><div class=bi>${BI.replay}</div><div><b>No replay runs yet.</b>
    <div class=bsub>Replay re-runs your real TokenJam telemetry through the candidate model and judges equivalence. Run <span class=mono>tjbench replay &lt;telemetry&gt;</span>.</div></div></div>`;
  else body=`<div class=chart style="margin-top:18px"><h3>Replay equivalence over time</h3>
    <p class=ch-sub>judge pass-rate (accuracy) and cost saved per replay run</p><div id=chartbox></div>
@@ -886,7 +920,7 @@ async function pgVersions(){
 }
 async function pgRegressions(){
  const g=await getJSON("/api/regressions");const rows=(g&&g.rows)||[];
- if(!rows.length){M().innerHTML=`<div class="banner ok"><div class=bi>✓</div><div><b>No regressions recorded.</b>
+ if(!rows.length){M().innerHTML=`<div class="banner ok"><div class=bi>${BI.ok}</div><div><b>No regressions recorded.</b>
    <div class=bsub>No config has shown a statistically significant pass-rate drop across any benchmarked TokenJam version.</div></div></div>`;return;}
  M().innerHTML=`<p class=lead>Only the runs that matter: configs where the cheaper model showed a statistically significant accuracy drop. Triage these before trusting the recommendation.</p><div id=rgtbl></div>`;
  table("rgtbl",[
@@ -980,8 +1014,10 @@ const PAGES={overview:pgOverview,benchmarks:pgBenchmarks,scenarios:pgScenarios,r
  versions:pgVersions,regressions:pgRegressions,reports:pgReports,ci:pgCI,settings:pgSettings};
 const AUTO=new Set(["overview","replay","ci"]);
 function curView(){let h=location.hash||"";h=h.replace(/^#\/?/,"").split("?")[0];return PAGES[h]?h:"overview";}
-function buildNav(){document.getElementById("nav").innerHTML=NAV.map(n=>
-  `<a href="#/${n[0]}" data-v="${n[0]}"><span class=ic>${n[2]}</span>${n[1]}</a>`).join("");}
+function buildNav(){document.getElementById("nav").innerHTML=NAV.map(g=>
+  `<div class=navsec>${esc(g[0])}</div>`+g[1].map(it=>
+    `<a href="#/${it[0]}" data-v="${it[0]}"><span class=ic>${ICONS[it[0]]||""}</span>${esc(it[1])}</a>`).join("")
+  ).join("");}
 function markNav(v){document.querySelectorAll("#nav a").forEach(a=>a.classList.toggle("active",a.dataset.v===v));}
 async function route(){
  const v=curView();markNav(v);
