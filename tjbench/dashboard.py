@@ -502,6 +502,20 @@ button.lnk.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)
 .mt-bar > i{display:block;height:100%;border-radius:6px;background:var(--acc)}
 .medal{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid;font-weight:700;font-size:12px}
 .rankn{display:inline-grid;place-items:center;width:24px;height:24px;color:var(--mut);font-size:12px}
+/* release timeline + pipeline */
+.rel-track,.pipe{display:flex;align-items:flex-start;overflow-x:auto;padding:6px 2px}
+.rel-step{display:flex;flex-direction:column;align-items:center;min-width:128px;text-align:center}
+.rel-step .rel-dot{width:14px;height:14px;border-radius:50%;border:3px solid var(--panel);background:var(--good)}
+.rel-step.reg .rel-dot{background:var(--bad)}
+.rel-step .rel-v{font-weight:650;margin-top:8px;font-size:13px}
+.rel-step .rel-meta{font-size:11.5px;color:var(--mut);margin-top:2px}
+.rel-conn{flex:1;height:2px;background:var(--line);align-self:flex-start;margin-top:12px;min-width:26px}
+.pipe-stage{display:flex;flex-direction:column;align-items:center;min-width:140px;text-align:center;gap:6px}
+.pipe-ico{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;border:1px solid var(--line2);color:var(--mut2)}
+.pipe-ico svg{width:18px;height:18px}
+.pipe-stage.pass .pipe-ico{color:var(--good);background:color-mix(in srgb,var(--good) 12%,transparent);border-color:color-mix(in srgb,var(--good) 35%,transparent)}
+.pipe-lbl{font-size:12.5px;font-weight:600}.pipe-sub{font-size:11px;color:var(--mut)}
+.pipe-conn{flex:1;height:2px;background:var(--line);align-self:flex-start;margin-top:18px;min-width:20px}
 /* diff viewer */
 .diff{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:10px;background:var(--panel)}
 .diff-q{padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--fg);display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -737,7 +751,7 @@ async function loadRuns(){return (await getJSON("/api/runs"))||[];}
 function bucket(runs){const by={};runs.forEach(r=>{(by[r.benchmark]=by[r.benchmark]||[]).push(r);});return by;}
 const SCEN=new Set(["coding-assistant","rag-support","research-agent","browser-agent","customer-support"]);
 const CAT={humaneval:"Executable",gsm8k:"Executable","swe-bench-lite":"Executable",samples:"Executable",
- replay:"Replay",judged:"LLM-judged"};
+ mbpp:"Executable",replay:"Replay",judged:"LLM-judged"};
 function catOf(b){if(SCEN.has(b))return"Scenarios";return CAT[b]||"Other";}
 const EXEC=new Set(["humaneval","gsm8k","swe-bench-lite","mbpp","samples"]);
 // ---- decision-support derivations (all honest: computed from real verdicts) -
@@ -888,16 +902,26 @@ async function pgBenchmarks(){
    const rs=by[b];const latest=rs[0];
    const ci=(latest.wilson_low==null)?"—":`${pct(latest.wilson_low)} – ${pct(latest.wilson_high)}`;
    const mc=(latest.mcnemar_b==null)?"—":`b=${latest.mcnemar_b} / c=${latest.mcnemar_c}${latest.mcnemar_p==null?"":" · p="+Number(latest.mcnemar_p).toFixed(3)}`;
+   const diff=latest.difficulty,diffCls=diff==='hard'?'b-bad':diff==='medium'?'b-warn':'b-good';
+   const totalN=rs.reduce((a,x)=>a+(x.n_tasks||0),0);
+   const fc=(latest.failure_categories||[]).slice(0,4);
    html+=`<div class="card hov">
     <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
      <div style="font-weight:650;font-size:15px;white-space:nowrap">${esc(b)}</div>${badge(latest.verdict)}</div>
-    <div class=muted style="font-size:12px;margin-top:2px">${rs.length} run${rs.length===1?"":"s"} &middot; latest ${ago(latest.created_at)}</div>
+    <div class=muted style="font-size:12px;margin-top:3px">${latest.task_category?esc(latest.task_category)+" &middot; ":""}${rs.length} run${rs.length===1?"":"s"} &middot; latest ${ago(latest.created_at)}${diff?` &middot; <span class="badge ${diffCls}" style="padding:1px 7px">${esc(diff)}</span>`:""}</div>
     <div class="grid g2" style="gap:10px;margin-top:14px">
-     <div><div class=lbl style="color:var(--mut);font-size:11px">PASS RATE</div><div style="font-size:18px;font-weight:700">${latest.candidate_pass_rate}%</div></div>
-     <div><div class=lbl style="color:var(--mut);font-size:11px">COST SAVED</div><div style="font-size:18px;font-weight:700">${saved(latest.cost_delta_pct)}</div></div>
-     <div><div class=lbl style="color:var(--mut);font-size:11px">WILSON 95% CI</div><div class=mono style="font-size:13px">${ci}</div></div>
-     <div><div class=lbl style="color:var(--mut);font-size:11px">McNEMAR</div><div class=mono style="font-size:12px">${mc}</div></div>
+     <div><div style="color:var(--mut);font-size:11px">PASS RATE</div><div style="font-size:18px;font-weight:700">${latest.candidate_pass_rate}%</div></div>
+     <div><div style="color:var(--mut);font-size:11px">COST SAVED</div><div style="font-size:18px;font-weight:700">${saved(latest.cost_delta_pct)}</div></div>
+     <div><div style="color:var(--mut);font-size:11px">WILSON 95% CI</div><div class=mono style="font-size:13px">${ci}</div></div>
+     <div><div style="color:var(--mut);font-size:11px">McNEMAR</div><div class=mono style="font-size:12px">${mc}</div></div>
     </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--mut);border-top:1px solid var(--line);padding-top:11px">
+     <span>Tasks <b style="color:var(--fg)">${totalN.toLocaleString()}</b></span>
+     ${latest.coverage_pct!=null?`<span>Coverage <b style="color:var(--fg)">${latest.coverage_pct}%</b></span>`:""}
+     ${latest.latency_saved_pct!=null?`<span>Latency saved <b style="color:var(--fg)">${latest.latency_saved_pct}%</b></span>`:""}
+    </div>
+    ${fc.length?`<div style="margin-top:10px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut2);margin-bottom:6px">Top failure modes</div><div style="display:flex;flex-wrap:wrap;gap:6px">${fc.map(f=>`<span class=tag>${esc(f.category)} &times;${f.count}</span>`).join("")}</div></div>`:""}
+    ${latest.ground_truth?`<div class=muted style="font-size:11px;margin-top:10px">Ground truth: ${esc(latest.ground_truth)}</div>`:""}
     <div class=acts style="margin-top:14px"><a class=lnk href="/report/${encodeURIComponent(latest.file)}" target=_blank>Open report</a>
      <a class=lnk href="/raw/${encodeURIComponent(latest.file)}" target=_blank>JSON</a></div></div>`;
   });
@@ -1165,17 +1189,36 @@ async function pgProviders(){
  ],modelRows,{sortKey:"acc",dir:-1});
 }
 async function pgVersions(){
- const v=await getJSON("/api/version-summary");const rows=(v&&v.rows)||[];
- M().innerHTML=`<p class=lead>TokenJam changes constantly. This is the guard: every released version re-benchmarked, so a recommendation that quietly regresses in a new version is caught.</p>
-  <div class=chart><h3>Average cost saved by version</h3><p class=ch-sub>mean % saved across all configs</p><div id=verBar></div></div>
+ const [v,runs]=await Promise.all([getJSON("/api/version-summary"),loadRuns()]);
+ const rows=(v&&v.rows)||[];
+ if(!rows.length){M().innerHTML='<div class=empty>No version history yet — benchmark across TokenJam releases to populate this.</div>';return;}
+ const byV={};runs.forEach(r=>{(byV[r.tokenjam_version]=byV[r.tokenjam_version]||[]).push(r);});
+ rows.forEach(r=>{const rs=byV[r.version]||[];
+  r._replay=avg(rs.filter(x=>x.benchmark==="replay").map(x=>x.candidate_pass_rate));
+  r._judge=avg(rs.filter(x=>x.benchmark==="judged").map(x=>x.candidate_pass_rate));
+  r._configs=new Set(rs.map(x=>x.original_model+"→"+x.candidate_model)).size;});
+ const timeline=rows.map((r,i)=>`${i>0?'<div class=rel-conn></div>':''}<div class="rel-step ${r.regressions>0?'reg':''}">
+   <div class=rel-dot></div><div class=rel-v>${esc(r.version)}</div>
+   <div class=rel-meta>${r.runs} runs · ${r.regressions>0?`<span class=down>${r.regressions} regression${r.regressions>1?'s':''}</span>`:'<span class=up>stable</span>'}</div></div>`).join("");
+ M().innerHTML=`<p class=lead>TokenJam changes constantly. This is the guard: every released version is re-benchmarked, so a recommendation that quietly regresses in a new version is caught before it reaches production.</p>
+  <div class=card><div class=sect style="margin:0 0 10px">Release timeline</div><div class=rel-track>${timeline}</div></div>
+  <div class="grid g2" style="margin-top:16px;align-items:start">
+   <div class=chart><h3>Average cost saved by version</h3><p class=ch-sub>mean % saved across all configs</p><div id=verBar></div></div>
+   <div class=chart><h3>Average accuracy Δ by version</h3><p class=ch-sub>candidate vs original, pp</p><div id=verAcc></div></div>
+  </div>
   <div class=sect>Version history</div><div id=vtbl></div>`;
  barChart("verBar",rows.map(r=>({label:r.version,value:Math.max(0,-(r.avg_cost_delta_pct||0)),color:"var(--good)"})));
+ barChart("verAcc",rows.map(r=>({label:r.version,value:Math.max(0,(r.avg_acc_delta_pp||0)+50),color:"var(--acc)"})));
  table("vtbl",[
   {key:"version",label:"Version",html:r=>`<span class=mono>${esc(r.version)}</span>`},
+  {key:"_configs",label:"Configs",html:r=>r._configs||"—"},
   {key:"runs",label:"Runs"},
   {key:"avg_acc_delta_pp",label:"Δ Accuracy",sort:r=>r.avg_acc_delta_pp,html:r=>r.avg_acc_delta_pp==null?"—":accDelta(r.avg_acc_delta_pp)},
   {key:"avg_cost_delta_pct",label:"Cost Saved",sort:r=>-(r.avg_cost_delta_pct||0),html:r=>r.avg_cost_delta_pct==null?"—":saved(r.avg_cost_delta_pct)},
+  {key:"_replay",label:"Replay",sort:r=>r._replay,html:r=>r._replay==null?"—":Math.round(r._replay)+"%"},
+  {key:"_judge",label:"Judge",sort:r=>r._judge,html:r=>r._judge==null?"—":Math.round(r._judge)+"%"},
   {key:"regressions",label:"Regressions",html:r=>r.regressions>0?`<span class="badge b-bad">${r.regressions}</span>`:'<span class="badge b-good">0</span>'},
+  {key:"_rec",label:"Status",get:r=>r.regressions>0?1:0,html:r=>r.regressions>0?'<span class="badge b-warn">attention</span>':'<span class="badge b-good">stable</span>'},
  ],rows,{});
 }
 async function pgRegressions(){
@@ -1221,7 +1264,20 @@ async function pgCI(){
   statCard("06:00 UTC","Nightly Schedule","benchmark.yml cron"),
   statCard(runs.some(r=>BAD.has(r.verdict))?"attention":"green","Latest Status",runs.some(r=>BAD.has(r.verdict))?"a config regressed":"no regressions"),
  ].join("");
+ const replayN=runs.filter(r=>r.benchmark==="replay").length;
+ const judgedN=runs.filter(r=>r.benchmark==="judged").length;
+ const stages=[
+  {label:"Commit / Push",detail:"on push & PR",status:"pass"},
+  {label:"Offline Benchmark",detail:runs.length+" indexed",status:runs.length?"pass":"none"},
+  {label:"Replay",detail:replayN+" sessions",status:replayN?"pass":"none"},
+  {label:"DeepEval",detail:judgedN+" judged",status:judgedN?"pass":"none"},
+  {label:"Statistics",detail:"McNemar + Wilson CI",status:"pass"},
+  {label:"Published Report",detail:runs.length+" artifacts",status:runs.length?"pass":"none"},
+ ];
+ const pipe=stages.map((s,i)=>`${i>0?'<div class=pipe-conn></div>':''}<div class="pipe-stage ${s.status}">
+   <div class=pipe-ico>${s.status==="pass"?BI.ok:"—"}</div><div class=pipe-lbl>${esc(s.label)}</div><div class=pipe-sub>${esc(s.detail)}</div></div>`).join("");
  M().innerHTML=`<p class=lead>The continuous-benchmark pipeline runs an always-on offline gate on every push and a nightly live run against the latest TokenJam release. Full GitHub Actions logs live in the repo's Actions tab; below is the locally indexed run history.</p>
+  <div class=card style="margin-bottom:16px"><div class=sect style="margin:0 0 12px">Benchmark pipeline</div><div class=pipe>${pipe}</div></div>
   <div class="grid g4">${cards}</div>
   <div class="grid g2" style="margin-top:18px;align-items:start">
    <div class=card><div class=sect style="margin:0 0 8px">Workflows</div>
