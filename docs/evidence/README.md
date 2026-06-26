@@ -6,6 +6,11 @@ TokenJam pricing override). Reproduce with [`docs/proof-runbook.md`](../proof-ru
 
 Downsize tested: `deepseek-reasoner` (premium) → `deepseek-chat` (cheaper).
 
+> **Latest live run:** [2026-06-26 — DeepSeek reasoner → chat across gsm8k /
+> humaneval / judged](2026-06-26-deepseek-live.md) (artifacts in [`live/`](live/)).
+> gsm8k + humaneval cleared (`no_significant_regression`) at ~72–79% lower cost;
+> the 5-task judged suite honestly returned `insufficient_evidence`.
+
 ## HumanEval — executable pass/fail (n=20)
 
 | | Original (reasoner) | Candidate (chat) |

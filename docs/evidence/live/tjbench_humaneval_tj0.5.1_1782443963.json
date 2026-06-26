@@ -1,0 +1,171 @@
+{
+  "tokenjam_version": "0.5.1",
+  "tokenjam_location": "/Users/sudharsan/.local/pipx/venvs/tokenjam/lib/python3.14/site-packages/tokenjam/__init__.py",
+  "benchmark": "humaneval",
+  "original_model": "deepseek:deepseek-reasoner",
+  "candidate_model": "deepseek:deepseek-chat",
+  "recommended_by": "explicit --candidate override",
+  "n_tasks": 10,
+  "original_pass": 9,
+  "candidate_pass": 10,
+  "original_cost_usd": 0.005847,
+  "candidate_cost_usd": 0.003283,
+  "original_output_tokens": 2594,
+  "candidate_output_tokens": 1312,
+  "mock": false,
+  "priced_with_defaults": true,
+  "stats": {
+    "samples_per_task": 1,
+    "original_ci_pp": [
+      59.58,
+      98.21
+    ],
+    "candidate_ci_pp": [
+      72.25,
+      100.0
+    ],
+    "delta_ci_pp": [
+      -8.59,
+      28.59
+    ],
+    "mcnemar_b": 0,
+    "mcnemar_c": 1,
+    "mcnemar_p_value": 1.0,
+    "significant": false,
+    "alpha": 0.05,
+    "verdict": "no_significant_regression",
+    "original_pass_at_1": 0.9,
+    "candidate_pass_at_1": 1.0
+  },
+  "created_at": 1782443963.695581,
+  "tasks": [
+    {
+      "task_id": "HumanEval/0",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.0006775,
+      "candidate_cost_usd": 0.0004055,
+      "original_output_tokens": 301,
+      "candidate_output_tokens": 165,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/1",
+      "samples": 1,
+      "original_passes": 0,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.001044,
+      "candidate_cost_usd": 0.000472,
+      "original_output_tokens": 486,
+      "candidate_output_tokens": 200,
+      "original_detail": "AssertionError",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/2",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.000426,
+      "candidate_cost_usd": 0.000234,
+      "original_output_tokens": 186,
+      "candidate_output_tokens": 90,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/3",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.000317,
+      "candidate_cost_usd": 0.000177,
+      "original_output_tokens": 123,
+      "candidate_output_tokens": 53,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/4",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.000456,
+      "candidate_cost_usd": 0.000362,
+      "original_output_tokens": 193,
+      "candidate_output_tokens": 146,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/5",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.0006655,
+      "candidate_cost_usd": 0.0003295,
+      "original_output_tokens": 303,
+      "candidate_output_tokens": 135,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/6",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.0006995,
+      "candidate_cost_usd": 0.0002975,
+      "original_output_tokens": 315,
+      "candidate_output_tokens": 114,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/7",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.000357,
+      "candidate_cost_usd": 0.000271,
+      "original_output_tokens": 149,
+      "candidate_output_tokens": 106,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/8",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.000559,
+      "candidate_cost_usd": 0.000395,
+      "original_output_tokens": 246,
+      "candidate_output_tokens": 164,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    },
+    {
+      "task_id": "HumanEval/9",
+      "samples": 1,
+      "original_passes": 1,
+      "candidate_passes": 1,
+      "original_cost_usd": 0.0006455,
+      "candidate_cost_usd": 0.0003395,
+      "original_output_tokens": 292,
+      "candidate_output_tokens": 139,
+      "original_detail": "ok",
+      "candidate_detail": "ok"
+    }
+  ],
+  "original_pass_rate": 0.9,
+  "candidate_pass_rate": 1.0,
+  "accuracy_delta_pp": 10.0,
+  "cost_delta_pct": -43.85,
+  "regressions": 0,
+  "output_token_inflation": 0.506,
+  "token_inflation_flag": false,
+  "headline": "humaneval (n=10, k=1) \u00b7 tokenjam 0.5.1: deepseek:deepseek-reasoner \u2192 deepseek:deepseek-chat \u00b7 \u0394cost -43.9% (measured) \u00b7 \u0394pass-rate +10.0pp [95% CI -8.6, +28.6] \u00b7 McNemar p=1.000 \u2192 no_significant_regression"
+}
