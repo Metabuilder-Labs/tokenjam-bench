@@ -29,7 +29,7 @@ cancellation · Payment failed · Invoice request · Account locked · Shipping
 status · Feature request · Bug report · Escalation · Complaint · Billing error
 (double charge) · Order cancellation · GDPR data deletion.
 
-Difficulty mix: easy (6) · medium (7) · hard (3). Priority spans low → critical,
+Difficulty mix: easy (6) · medium (8) · hard (2). Priority spans low → critical,
 including safety-sensitive cases (account unlock, GDPR erasure, payment) where
 the reference reply deliberately **refuses unsafe actions** (no reading back
 passwords, no card numbers) — so a cheaper model is judged on staying safe too.

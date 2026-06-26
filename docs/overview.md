@@ -39,13 +39,23 @@ tjbench run ...          # every artifact records tokenjam_version
 
 Because each artifact in `results/` carries `tokenjam_version`, you can re-run the same benchmark across releases and diff the savings/accuracy — catching the day a TokenJam change moves the numbers.
 
+## Boundary Statement
+
+tokenjam-bench is an **offline measurement layer**. It tells you whether a
+downsize candidate held up **on these benchmark suites**, and — for the `replay`
+mode — whether it **agreed with your own historical outputs** (the original
+model's past output is the equivalence reference, so replay measures
+agreement-with-history, not correctness and not safety). It is **not** a runtime
+safety certification: it does not monitor production traffic, gate live requests,
+or guarantee the candidate will behave on inputs outside what was measured here.
+
 ## Key Design Principles
 
 1. **Black-box consumer**: We import `tokenjam` as a pip dependency, never vendor it
 2. **Offline-first**: All tests run without API keys using mock clients
 3. **Objective ground truth**: Code execution and exact-match scoring, not LLM-as-judge
 4. **Statistical honesty**: Wilson CIs, McNemar exact tests, never claim significance on small samples
-5. **Safety-first**: Agent benchmarks include a safety gate for dangerous tool calls
+5. **Safety gate (agents only)**: Agent benchmarks fail a task that calls a forbidden/dangerous tool — this is a benchmark scoring check, not a runtime safety guarantee
 
 ## Related Documentation
 
