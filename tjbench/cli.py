@@ -13,6 +13,7 @@ from tjbench.matrix import build_series, load_artifacts, series_to_dict, total_r
 from tjbench.pipeline import resolve_candidate, run_proof
 from tjbench.report_html import load_and_render, write_html_report
 from tjbench.version import resolve_tokenjam_build
+from tjbench.workflows import WORKFLOW_NAMES
 
 console = Console()
 
@@ -177,6 +178,60 @@ def _render_proof(result, path, output_json: bool) -> None:
     for note in notes:
         console.print(f"[dim]• {note}[/dim]")
     console.print(f"\nArtifact: [dim]{path}[/dim]")
+
+
+@cli.command("workflow")
+@click.argument("suite", type=click.Choice(WORKFLOW_NAMES))
+@click.option("--original", required=True,
+              help="Original model spec, e.g. anthropic:claude-opus-4-7.")
+@click.option("--candidate", default=None,
+              help="Override the candidate model (default: TokenJam's recommendation).")
+@click.option("--limit", type=int, default=None, help="Cap number of workflow tasks.")
+@click.option("--samples", type=int, default=1, show_default=True,
+              help="Samples per task per model (k). >1 enables pass@k / variance.")
+@click.option("--temperature", type=float, default=0.0, show_default=True)
+@click.option("--mock", is_flag=True,
+              help="Offline run (no provider SDKs/keys/spend). Numbers illustrative.")
+@click.option("--mock-candidate-accuracy", type=float, default=0.85, show_default=True,
+              help="In --mock mode, simulated candidate pass fraction.")
+@click.option("--max-tokens", type=int, default=1024, show_default=True)
+@click.option("--out", default="results", show_default=True,
+              help="Directory for the version-stamped JSON artifact.")
+@click.option("--html", "make_html", is_flag=True,
+              help="Also write a self-contained HTML report next to the JSON.")
+@click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
+def cmd_workflow(suite: str, original: str, candidate: str | None, limit: int | None,
+                 samples: int, temperature: float, mock: bool,
+                 mock_candidate_accuracy: float, max_tokens: int, out: str,
+                 make_html: bool, output_json: bool) -> None:
+    """Benchmark a production workflow (e.g. customer-support).
+
+    A workflow is a dataset-driven, judge-scored benchmark that flows through the
+    same proof stats (Wilson CI + McNemar + measured cost) as everything else.
+    The judge backend is selected via TJBENCH_JUDGE (offline MockJudge by default;
+    `TJBENCH_JUDGE=deepseek` for a real DeepEval judge).
+    """
+    try:
+        result = run_proof(
+            benchmark_name=suite,
+            original_spec=original,
+            candidate_spec=candidate,
+            limit=limit,
+            samples=samples,
+            temperature=temperature,
+            mock=mock,
+            mock_candidate_accuracy=mock_candidate_accuracy,
+            max_tokens=max_tokens,
+        )
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    path = result.write(out)
+    _render_proof(result, path, output_json)
+    if make_html and not output_json:
+        hp = write_html_report(result.to_dict(), out)
+        console.print(f"HTML report: [dim]{hp}[/dim]")
+    _record_history(result, path, out)
 
 
 @cli.command("agent")

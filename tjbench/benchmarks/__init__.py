@@ -25,7 +25,14 @@ def get_benchmark(name: str) -> Benchmark:
     if name == "judged":
         from tjbench.benchmarks.judged import JudgedBenchmark
         return JudgedBenchmark()
-    raise ValueError(f"Unknown benchmark '{name}'. Available: {BENCHMARK_NAMES}")
+    # Production Workflow suites are dataset-driven, judge-scored benchmarks that
+    # reuse this exact path (see tjbench.workflows).
+    from tjbench.workflows import WORKFLOW_NAMES, get_workflow
+    if name in WORKFLOW_NAMES:
+        return get_workflow(name)
+    raise ValueError(
+        f"Unknown benchmark '{name}'. Available: {BENCHMARK_NAMES + WORKFLOW_NAMES}"
+    )
 
 
 def get_agent_benchmark(name: str):

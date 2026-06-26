@@ -749,10 +749,11 @@ function reportActs(r){return `<div class=acts>
 // ---- shared loaders --------------------------------------------------------
 async function loadRuns(){return (await getJSON("/api/runs"))||[];}
 function bucket(runs){const by={};runs.forEach(r=>{(by[r.benchmark]=by[r.benchmark]||[]).push(r);});return by;}
-const SCEN=new Set(["coding-assistant","rag-support","research-agent","browser-agent","customer-support"]);
+const SCEN=new Set(["coding-assistant","rag-support","research-agent","browser-agent"]);
+const PROD=new Set(["customer-support","n8n","enterprise-rag","email-assistant","research-assistant"]);
 const CAT={humaneval:"Executable",gsm8k:"Executable","swe-bench-lite":"Executable",samples:"Executable",
  mbpp:"Executable",replay:"Replay",judged:"LLM-judged"};
-function catOf(b){if(SCEN.has(b))return"Scenarios";return CAT[b]||"Other";}
+function catOf(b){if(PROD.has(b))return"Production Workflows";if(SCEN.has(b))return"Scenarios";return CAT[b]||"Other";}
 const EXEC=new Set(["humaneval","gsm8k","swe-bench-lite","mbpp","samples"]);
 // ---- decision-support derivations (all honest: computed from real verdicts) -
 function configKey(r){return r.original_model+" → "+r.candidate_model;}
@@ -894,7 +895,7 @@ async function pgBenchmarks(){
  const runs=await loadRuns();const by=bucket(runs);
  if(!runs.length){M().innerHTML='<div class=empty>No benchmark runs yet.</div>';return;}
  const cats={};Object.keys(by).forEach(b=>{(cats[catOf(b)]=cats[catOf(b)]||[]).push(b);});
- const order=["Executable","Scenarios","Replay","LLM-judged","Other"];
+ const order=["Production Workflows","Executable","Scenarios","Replay","LLM-judged","Other"];
  let html=`<p class=lead>Every benchmark family, grouped by how accuracy is measured. A card's verdict is the latest run's hedged McNemar result — click through for the full proof.</p>`;
  order.filter(c=>cats[c]).forEach(c=>{
   html+=`<div class=sect>${esc(c)}</div><div class="grid auto">`;

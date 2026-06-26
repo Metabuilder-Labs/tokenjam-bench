@@ -1,0 +1,167 @@
+{
+  "suite": "customer-support",
+  "description": "Realistic support tickets for an e-commerce + SaaS business. Each ticket carries the expected intent, a grounded reference response, the knowledge-base context the answer must stay faithful to, and triage metadata. The candidate model is scored by the DeepEval judge on whether its reply matches the reference response, grounded in the context.",
+  "version": "1.0",
+  "tickets": [
+    {
+      "id": "cs/refund-window",
+      "question": "I ordered the wireless headphones 18 days ago but they don't fit well. Can I still return them for a refund?",
+      "expected_intent": "refund",
+      "expected_response": "Yes — our return window is 30 days from the purchase date, so an 18-day-old order is still eligible. As long as the headphones are in their original condition, I can start the refund for you.",
+      "knowledge_context": ["Returns are accepted within 30 days of purchase for items in original condition. Refunds are issued to the original payment method within 5-7 business days."],
+      "difficulty": "easy",
+      "category": "Returns & Refunds",
+      "priority": "normal"
+    },
+    {
+      "id": "cs/delivery-delay",
+      "question": "My order #88412 was supposed to arrive yesterday and it still hasn't. What's going on?",
+      "expected_intent": "delivery_delay",
+      "expected_response": "I'm sorry for the delay on order #88412. The carrier shows it's in transit with an updated delivery estimate of 1-2 business days. If it hasn't arrived by then, we'll file a carrier claim and reship at no cost.",
+      "knowledge_context": ["Standard shipping is 5-7 business days. Delays past the estimate are eligible for a carrier claim after 2 additional business days; reshipment is free."],
+      "difficulty": "medium",
+      "category": "Shipping",
+      "priority": "high"
+    },
+    {
+      "id": "cs/wrong-product",
+      "question": "I ordered a medium blue jacket but received a small black one. How do I fix this?",
+      "expected_intent": "wrong_product",
+      "expected_response": "Apologies for the mix-up. I've started a free replacement for the medium blue jacket and emailed you a prepaid return label for the incorrect item. You don't need to wait for the return to arrive before we ship the correct one.",
+      "knowledge_context": ["For fulfillment errors, send a prepaid return label and ship the correct item immediately without waiting for the return. No restocking fee applies."],
+      "difficulty": "medium",
+      "category": "Order Issues",
+      "priority": "high"
+    },
+    {
+      "id": "cs/password-reset",
+      "question": "I can't log in — the reset email never arrives. Help.",
+      "expected_intent": "password_reset",
+      "expected_response": "Let's get you back in. Reset emails can take up to 10 minutes and sometimes land in spam. If it still hasn't arrived, confirm the email on the account and I can trigger a fresh reset link to it now.",
+      "knowledge_context": ["Password reset links are valid for 60 minutes. If undelivered, verify the account email and re-trigger; check spam folders. Never read back or set a password for the user."],
+      "difficulty": "easy",
+      "category": "Account & Login",
+      "priority": "normal"
+    },
+    {
+      "id": "cs/subscription-cancel",
+      "question": "I want to cancel my Pro subscription before the next billing date.",
+      "expected_intent": "subscription_cancellation",
+      "expected_response": "I can cancel your Pro subscription so it won't renew. You'll keep Pro access until the end of the current billing period, and there are no cancellation fees. Would you like me to proceed?",
+      "knowledge_context": ["Subscriptions can be cancelled anytime; access continues until period end. No prorated refunds for the current period unless cancelled within 48 hours of renewal."],
+      "difficulty": "easy",
+      "category": "Billing",
+      "priority": "normal"
+    },
+    {
+      "id": "cs/payment-failed",
+      "question": "My payment keeps getting declined but my card works everywhere else.",
+      "expected_intent": "payment_failed",
+      "expected_response": "Sorry for the trouble. Declines are usually a billing-address mismatch or an issuer hold rather than a problem on our side. Please confirm the billing ZIP matches your card statement; if it still fails, try a different card and I'll flag the attempt for our payments team.",
+      "knowledge_context": ["Common decline causes: AVS/billing-address mismatch, insufficient funds, issuer fraud hold. Support cannot see full card numbers and must not request them."],
+      "difficulty": "medium",
+      "category": "Billing",
+      "priority": "high"
+    },
+    {
+      "id": "cs/invoice-request",
+      "question": "Can you send me a VAT invoice for order #77310 for my company records?",
+      "expected_intent": "invoice_request",
+      "expected_response": "Of course. I've generated the VAT invoice for order #77310 and emailed it to the address on the account. If you need a different billing name or company VAT number on it, let me know and I'll reissue.",
+      "knowledge_context": ["VAT invoices are available for all orders and can be reissued with a corrected company name or VAT ID on request."],
+      "difficulty": "easy",
+      "category": "Billing",
+      "priority": "low"
+    },
+    {
+      "id": "cs/account-locked",
+      "question": "My account is locked after too many login attempts. Can you unlock it?",
+      "expected_intent": "account_locked",
+      "expected_response": "For your security, accounts lock after several failed attempts and automatically unlock after 30 minutes. I can't bypass the lock, but I can send a verified reset link now so you can set a new password and sign in immediately.",
+      "knowledge_context": ["Accounts lock for 30 minutes after 5 failed attempts. Support cannot manually unlock but can issue a verified reset link after identity confirmation."],
+      "difficulty": "medium",
+      "category": "Account & Login",
+      "priority": "high"
+    },
+    {
+      "id": "cs/shipping-status",
+      "question": "Where is my order #90155 right now?",
+      "expected_intent": "shipping_status",
+      "expected_response": "Order #90155 shipped and is currently in transit, with an estimated delivery this Thursday. Here's your tracking number so you can follow it in real time. Let me know if the estimate slips and I'll look into it.",
+      "knowledge_context": ["Order #90155: shipped, in transit, ETA Thursday. Tracking is available once an order leaves the warehouse."],
+      "difficulty": "easy",
+      "category": "Shipping",
+      "priority": "normal"
+    },
+    {
+      "id": "cs/feature-request",
+      "question": "Will you ever add a dark mode to the mobile app? I'd really like it.",
+      "expected_intent": "feature_request",
+      "expected_response": "Thanks for the suggestion — dark mode is a popular request. I can't promise a date, but I've logged your vote with our product team so it's counted toward prioritization. I'll note your account so we can let you know if it ships.",
+      "knowledge_context": ["Feature requests are logged to the product board and counted as votes. Support must not commit to delivery dates."],
+      "difficulty": "medium",
+      "category": "Product Feedback",
+      "priority": "low"
+    },
+    {
+      "id": "cs/bug-report",
+      "question": "The export-to-CSV button does nothing when I click it on the reports page.",
+      "expected_intent": "bug_report",
+      "expected_response": "Thanks for flagging this. I've filed a bug for the CSV export on the reports page and included your account so engineering can reproduce it. As a workaround, the same data is available via the per-report \"Download\" menu while we fix the button.",
+      "knowledge_context": ["Report data can also be downloaded from the per-report menu. Bug reports are filed to engineering with the reporter's account for reproduction."],
+      "difficulty": "medium",
+      "category": "Technical",
+      "priority": "high"
+    },
+    {
+      "id": "cs/escalation",
+      "question": "This is the third time I've contacted you about the same billing error and nobody has fixed it. I want a manager.",
+      "expected_intent": "escalation",
+      "expected_response": "I completely understand your frustration, and I'm sorry this has taken three contacts. I'm escalating this to a senior billing specialist now with the full history attached, and you'll get a direct response within one business day. I'll stay on it until it's resolved.",
+      "knowledge_context": ["Repeat contacts (3+) on an unresolved issue are escalated to a senior specialist with full history; SLA for escalations is one business day."],
+      "difficulty": "hard",
+      "category": "Escalation",
+      "priority": "critical"
+    },
+    {
+      "id": "cs/complaint-quality",
+      "question": "The product quality was terrible and I'm really disappointed with this purchase.",
+      "expected_intent": "complaint",
+      "expected_response": "I'm sorry the product didn't meet your expectations — that's not the experience we want. I'd like to make it right with a replacement or a full refund, whichever you prefer, and I'll pass your feedback to our quality team.",
+      "knowledge_context": ["Quality complaints are eligible for replacement or full refund at the customer's choice; feedback is routed to the quality team."],
+      "difficulty": "medium",
+      "category": "Complaints",
+      "priority": "high"
+    },
+    {
+      "id": "cs/billing-error-double",
+      "question": "I was charged twice for order #65002. Please refund the duplicate.",
+      "expected_intent": "billing_error",
+      "expected_response": "You're right — I see two charges for order #65002. I've refunded the duplicate charge to your original payment method; it should appear within 5-7 business days. Apologies for the double charge.",
+      "knowledge_context": ["Duplicate charges are refunded to the original payment method within 5-7 business days once verified against the order."],
+      "difficulty": "medium",
+      "category": "Billing",
+      "priority": "critical"
+    },
+    {
+      "id": "cs/order-cancel",
+      "question": "Can I cancel order #91888? I placed it by mistake a few minutes ago.",
+      "expected_intent": "order_cancellation",
+      "expected_response": "Good timing — order #91888 hasn't shipped yet, so I've cancelled it and released the hold on your payment. You should see the authorization drop off within a few business days. Nothing further is needed.",
+      "knowledge_context": ["Orders can be cancelled before they enter fulfillment; the payment authorization is voided and drops off in a few business days."],
+      "difficulty": "easy",
+      "category": "Order Issues",
+      "priority": "normal"
+    },
+    {
+      "id": "cs/data-deletion",
+      "question": "Under GDPR I want all my personal data deleted from your systems.",
+      "expected_intent": "data_request",
+      "expected_response": "Absolutely — you have the right to erasure under GDPR. I've opened a verified data-deletion request for your account; our privacy team completes these within 30 days and will email you a confirmation once your personal data has been removed.",
+      "knowledge_context": ["GDPR erasure requests are honored within 30 days after identity verification; the privacy team sends a completion confirmation. Some records may be retained where legally required."],
+      "difficulty": "hard",
+      "category": "Privacy & Legal",
+      "priority": "high"
+    }
+  ]
+}

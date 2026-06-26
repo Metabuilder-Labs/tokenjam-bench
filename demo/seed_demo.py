@@ -51,6 +51,7 @@ TOKPROFILE = {
     "rag-support": (1800, 4200, 300, 760),
     "research-agent": (2600, 6400, 520, 1240),
     "browser-agent": (2200, 5600, 420, 980),
+    "customer-support": (600, 1800, 180, 560),
 }
 
 # Difficulty + ground-truth provenance per benchmark (demo metadata).
@@ -65,6 +66,7 @@ META = {
     "rag-support": ("RAG support", "medium", "Scenario suite (gated tools)"),
     "research-agent": ("Research agent", "hard", "Scenario suite (gated tools)"),
     "browser-agent": ("Browser agent", "hard", "Scenario suite (gated tools)"),
+    "customer-support": ("Customer support", "medium", "Support tickets (16 grounded)"),
 }
 
 FAIL_CATS = {
@@ -78,6 +80,7 @@ FAIL_CATS = {
     "rag-support": ["wrong-answer", "missed-citation", "unsafe-action"],
     "research-agent": ["shallow", "unsafe-publish", "missed-source"],
     "browser-agent": ["wrong-extract", "unsafe-purchase", "nav-fail"],
+    "customer-support": ["wrong-policy", "missed-context", "off-tone", "unsafe-action"],
 }
 
 
@@ -112,7 +115,8 @@ def make_outcomes(bench, orig_spec, cand_spec, a, b, c, d):
 def latency(bench, cheap=False):
     base = {"swe-bench-lite": 42000, "coding-assistant": 28000, "research-agent": 22000,
             "browser-agent": 18000, "humaneval": 9000, "mbpp": 6000, "judged": 11000,
-            "replay": 7000, "rag-support": 8000, "gsm8k": 4200}[bench]
+            "replay": 7000, "rag-support": 8000, "gsm8k": 4200,
+            "customer-support": 5200}[bench]
     base = base * (0.42 if cheap else 1.0)
     return int(base * RNG.uniform(0.85, 1.15))
 
@@ -204,6 +208,9 @@ def write_artifact(cfg, bench, version, ts, n, orig_rate, cand_rate, b, c, *, mo
         d_out["unsafe_actions_blocked"] = RNG.randint(0, 3)
         d_out["risk_category"] = {"coding-assistant": "code-mutation", "rag-support": "financial",
                                   "research-agent": "publication", "browser-agent": "payment"}[bench]
+    if bench == "customer-support":
+        d_out["pass_threshold"] = 0.8
+        d_out["safety_gate"] = "enforced"
 
     fn = OUT / f"tjbench_{bench}_tj{version}_{int(ts)}_{RNG.randrange(1_000_000):06d}.json"
     fn.write_text(json.dumps(d_out, indent=2))
@@ -249,6 +256,12 @@ def main():
         emit(A, suite, "0.5.1", 36, 0.917, 0.889, b=3, c=2, jitter=5)
     emit(A, "replay", "0.5.0", 90, 0.94, 0.933, b=5, c=4, jitter=6)
     emit(A, "replay", "0.5.1", 120, 0.95, 0.95, b=4, c=4, jitter=6)
+
+    # ---- Production Workflows (customer-support): grounded support tickets ----
+    emit(A, "customer-support", "0.5.0", 16, 0.94, 0.94, b=1, c=1, jitter=7)
+    emit(A, "customer-support", "0.5.1", 16, 0.94, 0.94, b=1, c=1, jitter=7)
+    emit(S, "customer-support", "0.5.1", 16, 0.93, 0.94, b=1, c=2, jitter=7)
+    emit(O_, "customer-support", "0.5.1", 16, 0.92, 0.90, b=2, c=1, jitter=7)
 
     # ---- sonnet→haiku: cleared ----
     for ver in ("0.5.0", "0.5.1"):
