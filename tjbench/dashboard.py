@@ -80,6 +80,8 @@ def scan_runs(directory: str | Path) -> list[dict[str, Any]]:
             "cost_delta_pct": d.get("cost_delta_pct", 0.0),
             "original_cost_usd": d.get("original_cost_usd"),
             "candidate_cost_usd": d.get("candidate_cost_usd"),
+            "original_output_tokens": d.get("original_output_tokens"),
+            "candidate_output_tokens": d.get("candidate_output_tokens"),
             "output_token_inflation": d.get("output_token_inflation"),
             "regressions": d.get("regressions"),
             "priced_with_defaults": d.get("priced_with_defaults", False),
@@ -438,6 +440,33 @@ select:focus,input.in:focus,button:focus{outline:none;border-color:var(--acc)}
 .evrow .ev-l{flex:1;color:var(--fg)}.evrow .ev-v{color:var(--mut);font-variant-numeric:tabular-nums}
 .ev-ok .ev-ic{color:var(--good)}.ev-bad .ev-ic{color:var(--bad)}.ev-warn .ev-ic{color:var(--warn)}.ev-mut{color:var(--mut2)}
 @media(max-width:900px){.hero{grid-template-columns:1fr}.hero-side{border-left:none;border-top:1px solid var(--line);padding-left:0;padding-top:18px}}
+/* with-vs-without TokenJam impact */
+.tjimpact{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:22px 24px;margin-bottom:22px;box-shadow:var(--shadow)}
+.tji-tag{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--mut2);font-weight:700}
+.tji-sub{color:var(--mut);font-size:12.5px;margin:3px 0 16px;max-width:760px}
+.tji-grid{display:grid;grid-template-columns:1fr 1fr 190px;gap:16px;align-items:stretch}
+.tji-col{border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.tji-col.win{border-color:color-mix(in srgb,var(--good) 40%,var(--line));background:color-mix(in srgb,var(--good) 6%,transparent)}
+.tji-lbl{font-weight:650;font-size:13px;display:flex;flex-direction:column}
+.tji-lbl span{font-weight:500;color:var(--mut);font-size:11px;margin-top:1px}
+.tji-row{display:flex;justify-content:space-between;align-items:baseline;margin-top:11px;font-size:12.5px;color:var(--mut)}
+.tji-row b{font-size:18px;color:var(--fg);font-variant-numeric:tabular-nums;font-weight:700}
+.tji-save{display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;
+ border:1px solid color-mix(in srgb,var(--good) 35%,var(--line));border-radius:12px;background:color-mix(in srgb,var(--good) 8%,transparent)}
+.tji-big{font-size:34px;font-weight:800;color:var(--good);letter-spacing:-.02em;line-height:1}
+.tji-big2{font-size:21px;font-weight:750;color:var(--good);margin-top:10px;line-height:1}
+.tji-bl{font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+.tji-bars{margin-top:18px;display:flex;flex-direction:column;gap:10px}
+.cmpbar{display:grid;grid-template-columns:58px 1fr 170px;align-items:center;gap:12px;font-size:12.5px}
+.cmpbar-l{color:var(--mut);font-weight:600}
+.cmpbar-track{position:relative;height:14px;border-radius:7px;background:color-mix(in srgb,var(--bad) 24%,var(--chip));overflow:hidden}
+.cmpbar-w{position:absolute;left:0;top:0;bottom:0;background:var(--good);border-radius:7px;transition:width .4s}
+.cmpbar-v{text-align:right;color:var(--good);font-weight:650;font-variant-numeric:tabular-nums}
+.cmpbar-v span{color:var(--mut2);font-weight:500}
+.tji-note{margin-top:16px;font-size:12.5px;color:var(--mut);display:flex;align-items:center;gap:9px}
+.tji-note svg{width:15px;height:15px;color:var(--good);flex:0 0 auto}.tji-note b{color:var(--fg)}
+.tji-proj{margin-top:9px;font-size:12.5px;color:var(--mut)}.tji-proj b{color:var(--fg)}.tji-proj span{color:var(--mut2);font-size:11px}
+@media(max-width:900px){.tji-grid{grid-template-columns:1fr}.cmpbar{grid-template-columns:48px 1fr 120px}}
 /* badges */
 .badge{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
  padding:3px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
@@ -619,6 +648,10 @@ function modelOf(m){const p=String(m||"").split(":");return p.length>1?p.slice(1
 function pct(x){return x==null?"—":(Math.round(x*10)/10)+"%";}
 function pp(x){return x==null?"—":(x>=0?"+":"")+(Math.round(x*10)/10)+"pp";}
 function money(x){return x==null?"—":"$"+Number(x).toFixed(Number(x)<0.01?6:4);}
+function usd(x){if(x==null)return"—";const a=Math.abs(x);
+ if(a>=1000)return "$"+Math.round(x).toLocaleString();
+ if(a>=1)return "$"+x.toFixed(2);
+ return "$"+x.toFixed(a<0.01?5:4);}
 function saved(costDelta){ // costDelta negative = cheaper
  if(costDelta==null)return"—";const s=-costDelta;
  const cls=s>0?"up":(s<0?"down":"");return `<span class="delta ${cls}">${s>0?"−":""}${Math.abs(Math.round(s*10)/10)}%</span>`;}
@@ -820,6 +853,46 @@ function heroCard(runs){
      ${evrow("No regression",noReg?{status:"pass",label:"clear"}:{status:"fail",label:"regression"})}
     </div>
    </div></div>`;}
+function fmtTok(n){if(n==null)return"—";n=Math.round(n);
+ if(n>=1e6)return(n/1e6).toFixed(n>=1e7?0:1)+"M";if(n>=1e3)return(n/1e3).toFixed(n>=1e5?0:1)+"k";return String(n);}
+function cmpBar(label,wo,w,fmt){
+ const pct=wo>0?Math.max(2,Math.min(100,w/wo*100)):0;
+ return `<div class=cmpbar><div class=cmpbar-l>${esc(label)}</div>
+  <div class=cmpbar-track title="without ${esc(fmt(wo))} · with ${esc(fmt(w))}"><div class=cmpbar-w style="width:${pct.toFixed(1)}%"></div></div>
+  <div class=cmpbar-v>${esc(fmt(w))} <span>vs ${esc(fmt(wo))}</span></div></div>`;}
+// "With TokenJam vs without": apply the recommendation where it cleared, keep
+// the original where TokenJam said don't switch → honest savings + avoided risk.
+function tjImpact(runs){
+ let woCost=0,wCost=0,woTok=0,wTok=0,switched=0,avoided=0,haveCost=false,haveTok=false;
+ runs.forEach(r=>{
+  const oc=r.original_cost_usd,cc=r.candidate_cost_usd,ot=r.original_output_tokens,ct=r.candidate_output_tokens;
+  if(oc!=null)haveCost=true; if(ot!=null)haveTok=true;
+  woCost+=oc||0; woTok+=ot||0;
+  if(BAD.has(r.verdict)){wCost+=oc||0; wTok+=ot||0; avoided++;}
+  else {wCost+=(cc!=null?cc:(oc||0)); wTok+=(ct!=null?ct:(ot||0)); if((cc||0)<(oc||0))switched++;}
+ });
+ if(!haveCost&&!haveTok)return"";
+ const costSave=woCost>0?(1-wCost/woCost)*100:null;
+ const tokSave=woTok>0?(1-wTok/woTok)*100:null;
+ const saved=woCost-wCost;
+ return `<div class=tjimpact>
+  <div class=tji-tag>With TokenJam vs without</div>
+  <div class=tji-sub>across ${runs.length} benchmark run${runs.length===1?"":"s"} — apply the recommendation where it cleared, keep the original where it didn't. Output tokens &amp; cost are measured.</div>
+  <div class=tji-grid>
+   <div class=tji-col><div class=tji-lbl>Without TokenJam<span>stay on the original models</span></div>
+    <div class=tji-row><span>Output tokens</span><b>${fmtTok(woTok)}</b></div>
+    <div class=tji-row><span>Measured cost</span><b>${usd(woCost)}</b></div></div>
+   <div class="tji-col win"><div class=tji-lbl>With TokenJam<span>follow the cleared recommendations</span></div>
+    <div class=tji-row><span>Output tokens</span><b>${fmtTok(wTok)}</b></div>
+    <div class=tji-row><span>Measured cost</span><b>${usd(wCost)}</b></div></div>
+   <div class=tji-save><div class=tji-big>${costSave==null?"—":"−"+Math.round(costSave)+"%"}</div><div class=tji-bl>cost saved</div>
+    <div class=tji-big2>${tokSave==null?"—":"−"+Math.round(tokSave)+"%"}</div><div class=tji-bl>fewer tokens</div></div>
+  </div>
+  <div class=tji-bars>${cmpBar("Tokens",woTok,wTok,fmtTok)}${cmpBar("Cost",woCost,wCost,usd)}
+   <div class=legend style="margin-top:2px"><span><i style="background:var(--good)"></i>with TokenJam (what you spend)</span><span><i style="background:color-mix(in srgb,var(--bad) 45%,var(--chip))"></i>saved by following the recommendation</span></div></div>
+  ${avoided?`<div class=tji-note>${BI.ok}<span>TokenJam also flagged <b>${avoided}</b> config${avoided===1?"":"s"} where switching would have regressed accuracy — keeping the original there avoided a bad swap.</span></div>`:""}
+  <div class=tji-proj>At 10× this volume you'd save <b>${usd(saved*10)}</b>; at 100×, <b>${usd(saved*100)}</b> <span>· linear projection at measured rates, not a forecast</span></div>
+ </div>`;}
 // =================== PAGES ==================================================
 async function pgOverview(){
  const runs=await loadRuns();
@@ -863,7 +936,7 @@ async function pgOverview(){
    <div class=tl-body><div class=t1>${esc(r.benchmark)} ${r.mock?'<span class=tag>mock</span>':''}</div>
    <div class=t2><span class=mono>${esc(modelOf(r.original_model))} → ${esc(modelOf(r.candidate_model))}</span> &middot; ${badge(r.verdict)} &middot; saved ${saved(r.cost_delta_pct)}</div></div>
    <div class=tl-time>${ago(r.created_at)}</div></div>`).join("")||'<div class=empty>no runs</div>';
- M().innerHTML=`${heroCard(runs)}<p class=lead>The trust layer for TokenJam — every figure below is a measured benchmark with a hedged statistical verdict, never a bare "safe".</p>
+ M().innerHTML=`${heroCard(runs)}${tjImpact(runs)}<p class=lead>The trust layer for TokenJam — every figure below is a measured benchmark with a hedged statistical verdict, never a bare "safe".</p>
   <div class="grid g5">${cards}</div>
   <div class=sect>Overall recommendation status</div>${banner}
   <div class=chart style="margin-top:18px"><h3>Accuracy &amp; cost-saved trend</h3><p class=ch-sub>candidate pass-rate and % cost saved across ${runs.length} runs, oldest → newest</p>

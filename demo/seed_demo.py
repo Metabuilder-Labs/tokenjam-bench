@@ -116,7 +116,9 @@ def make_outcomes(bench, orig_spec, cand_spec, a, b, c, d):
         oi = RNG.randint(lo_i, hi_i)
         oo = RNG.randint(lo_o, hi_o)
         ci = oi + RNG.randint(-oi // 12, oi // 12)
-        co = int(oo * RNG.uniform(0.88, 1.16))
+        # Recommended downgrade targets are typically terser (smaller / non-reasoning
+        # model), so the candidate emits fewer output tokens — part of the saving.
+        co = int(oo * RNG.uniform(0.55, 0.9))
         out.append(TaskOutcome(
             task_id=f"{bench}/{i:03d}", samples=1,
             original_passes=op, candidate_passes=cp,
