@@ -57,7 +57,7 @@ Yes! See [Development Guide](development.md#adding-a-new-benchmark).
 
 ### What is SWE-Bench Lite?
 
-300 real GitHub issues from popular Python repositories. The agent must fix bugs by editing code and running tests.
+⚠️ In this repo, `swe-bench-lite` is an **experimental scaffold, not a working benchmark**. It can build prompts and expose developer tools, but **fix-verification (running FAIL_TO_PASS / PASS_TO_PASS tests) is not implemented**, so scoring is disabled and it cannot produce a pass-rate. See [SWE-Bench Lite](swe-bench-lite.md) for what real scoring would require.
 
 ## Mock Mode
 

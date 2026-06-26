@@ -204,7 +204,7 @@ TJBENCH_JUDGE=deepseek tjbench replay \
 | `gsm8k` | numeric exact-match | `[datasets]` | |
 | `judged` | DeepEval correctness | `[judge,providers]` | LLM-as-judge; key-gated |
 | `sample-agent` | tool use + safety gate | nothing (offline) | agent benchmark |
-| `swe-bench-lite` | real GitHub bug fixes | SWE-bench dataset | 300-task agent benchmark |
+| `swe-bench-lite` | ⚠️ none — experimental scaffold | SWE-bench dataset | tool/prompt scaffold only; **fix-verification not implemented**, scoring disabled — not a real pass-rate |
 | `replay` | agreement with the original model's own historical output | `[providers]` + telemetry | your real sessions; measures agreement-with-history, not correctness/safety |
 
 ---
@@ -261,7 +261,7 @@ pytest
 | `test_agent_runner.py` | 3 | Multi-turn loop, max-turns guard, tool execution |
 | `test_dashboard.py` | 3 | Dashboard artifact loading, serve routing |
 | `test_report.py` | 3 | ProofResult derived properties, headline, write/round-trip |
-| `test_swe_bench_lite.py` | — | SWE-bench loader (skipped without dataset) |
+| `test_swe_bench_lite.py` | 19 | swe-bench scaffold: scoring-disabled gate + tools/parsing |
 | `test_version_stamp.py` | 1 | resolve_tokenjam_build metadata read |
 
 All tests run offline with no provider SDKs or keys. Live-provider tests skip cleanly without `[providers]` installed.
@@ -317,7 +317,7 @@ benchmarks/           Benchmark definitions + scoring
   real_scenarios.py   Real-world scenario tasks
   agent_base.py       AgentTask, AgentBenchmark protocol
   sample_agent.py     Offline agent benchmark (tool use + safety)
-  swe_bench_lite.py   300 real GitHub bug fixes
+  swe_bench_lite.py   experimental scaffold — tool-usage only (no fix verification)
 
 agents/               Multi-turn agent execution
   runner.py           AgentRunner — the multi-turn loop

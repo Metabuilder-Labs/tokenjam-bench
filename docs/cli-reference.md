@@ -106,7 +106,7 @@ tjbench agent [OPTIONS]
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--benchmark` | `sample-agent` | Agent benchmark: `sample-agent`, `swe-bench-lite` |
+| `--benchmark` | `sample-agent` | Agent benchmark: `sample-agent` (`swe-bench-lite` is an experimental scaffold — scoring disabled) |
 | `--original` | (required) | Original model spec |
 | `--candidate` | (TokenJam) | Override candidate model |
 | `--limit` | all | Limit number of tasks |
@@ -139,10 +139,7 @@ tjbench agent --benchmark sample-agent --original anthropic:claude-opus-4-7 --mo
 tjbench agent --benchmark sample-agent --original anthropic:claude-opus-4-7 --mock --candidate-behavior unsafe
 ```
 
-**SWE-Bench Lite agent proof:**
-```bash
-tjbench agent --benchmark swe-bench-lite --original anthropic:claude-opus-4-7 --mock --limit 5
-```
+> ⚠️ `swe-bench-lite` is an **experimental scaffold** — fix-verification is not implemented and scoring is disabled, so it does not produce a proof. See [SWE-Bench Lite](swe-bench-lite.md).
 
 ---
 

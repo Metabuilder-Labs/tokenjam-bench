@@ -15,7 +15,7 @@ Welcome to the **tokenjam-bench** documentation. This is the official benchmarki
 9. [Statistics](statistics.md) — Statistical methods used for proof
 10. [Cost & Pricing](cost-pricing.md) — How costs are computed
 11. [Integration with TokenJam](tokenjam-integration.md) — How we consume TokenJam
-12. [SWE-Bench Lite](swe-bench-lite.md) — Real GitHub issue bug fix benchmark
+12. [SWE-Bench Lite](swe-bench-lite.md) — Experimental scaffold (fix-verification not implemented; scoring disabled)
 13. [Test Suite](tests.md) — Complete test inventory and philosophy
 14. [Security](security.md) — Security considerations
 15. [FAQ](faq.md) — Frequently asked questions

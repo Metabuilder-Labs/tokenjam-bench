@@ -96,19 +96,13 @@ tjbench run --benchmark humaneval \
 > Use **n ≥ ~30** so McNemar can actually reach significance — with small n the
 > verdict is honestly `insufficient_evidence`.
 
-### c) SWE-Bench Lite (multi-turn agent; heavier — see caveats)
+### c) SWE-Bench Lite — ⚠️ experimental scaffold, no proof available
 
-```bash
-tjbench agent --benchmark swe-bench-lite \
-  --original deepseek:deepseek-reasoner --candidate deepseek:deepseek-chat \
-  --limit 5 --html
-```
-
-SWE-Bench Lite is an **agent** benchmark (tool use via the OpenAI-compatible
-tool-calling client, now wired for DeepSeek). Live scoring needs the SWE-bench
-dataset (`[datasets]`) and is materially heavier than HumanEval (repo context,
-multi-turn loops). If you only want the framework demonstrated end-to-end
-without that weight, add `--mock` for deterministic scoring.
+`swe-bench-lite` is an **experimental scaffold**, not a usable proof source.
+Fix-verification (running the task's `FAIL_TO_PASS` / `PASS_TO_PASS` tests) is
+**not implemented**, so scoring is disabled and the benchmark cannot produce a
+pass-rate. Don't include it in a proof run. See
+[SWE-Bench Lite](swe-bench-lite.md) for what a real integration would require.
 
 ## 5. The report
 

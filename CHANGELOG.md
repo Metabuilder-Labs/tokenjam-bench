@@ -13,7 +13,7 @@
 
 #### Agent Benchmarks
 - **sample-agent** — 3 offline tool-use tasks with safety gate validation
-- **swe-bench-lite** — 300 real GitHub issue bug fixes from SWE-Bench Lite dataset
+- **swe-bench-lite** — experimental scaffold (dataset loader + developer tools); fix-verification is NOT implemented, so it does not produce a pass-rate
 
 #### SWE-Bench Tools
 - **view** — Read file contents with line numbers

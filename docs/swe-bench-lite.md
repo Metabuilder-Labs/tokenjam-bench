@@ -1,221 +1,73 @@
-# SWE-Bench Lite Integration
+# SWE-Bench Lite — Experimental Scaffold
 
-## Overview
+> ## ⚠️ Status: experimental scaffold — NOT a working benchmark
+>
+> `swe-bench-lite` does **not** verify bug fixes and **cannot produce a
+> SWE-bench pass-rate**. Fix-verification (running each task's `FAIL_TO_PASS` /
+> `PASS_TO_PASS` tests against the agent's edits) is **not implemented**.
+> `score()` is intentionally disabled — it raises `NotImplementedError` — so no
+> result is ever emitted. **Do not present any number from this module as a
+> SWE-bench result.**
 
-The SWE-Bench Lite integration is the **first real agent benchmark** that exercises the [AgentRunner](agents.md#agentrunner) on actual capability (bug fixing) rather than just plumbing. It transforms tokenjam-bench from an "agent evaluation framework proof-of-concept" into an "agent benchmark platform."
+## What exists today
 
-## What is SWE-Bench Lite?
+This module is a starting point for a future real SWE-bench integration. The
+parts that are genuinely implemented and tested:
 
-[SWE-Bench](https://github.com/princeton-nlp/SWE-bench) is a benchmark for evaluating large language models on real-world software engineering tasks. **SWE-Bench Lite** is a curated subset of 300 tasks from 23 popular Python repositories.
+- **`SWEBenchTask`** — a dataclass carrying the SWE-bench fields (repo, base
+  commit, `FAIL_TO_PASS`, `PASS_TO_PASS`, problem statement, …).
+- **Dataset loader** (`tasks()`) — reads `princeton-nlp/SWE-bench_Lite` via the
+  `datasets` extra (when installed).
+- **Prompt construction** — builds an agent prompt from the problem statement
+  and the files named in the patch.
+- **Developer tool registry** (`tools()`) — `view`, `view_range`, `str_replace`,
+  `create`, `insert`, `bash`.
+- **`SWEBenchToolSet`** (`agents/swe_bench_tools.py`) — real workspace-bound
+  implementations of those tools (path-traversal guarded, exact-match edits,
+  timed `bash`). Currently tested in isolation and **not wired** into the
+  benchmark run path.
 
-Each task consists of:
-- A **real GitHub issue** with a bug report
-- A **repository** (e.g., `astropy/astropy`, `django/django`)
-- A **base commit** (the state before the fix)
-- A **patch** (the actual fix that was merged)
-- **Test patches** (tests that verify the fix)
-- `FAIL_TO_PASS` tests (must pass after fix = bug is fixed)
-- `PASS_TO_PASS` tests (must still pass after fix = no regressions)
+## What is NOT implemented (why scoring is disabled)
 
-## How It Works in tokenjam-bench
+A real SWE-bench score is defined entirely by test execution:
 
-### Architecture
+1. Check out the repository at the task's base commit.
+2. Set up the environment (install dependencies).
+3. Apply the agent's edits to the working tree.
+4. Run `FAIL_TO_PASS` tests — must pass (the bug is fixed).
+5. Run `PASS_TO_PASS` tests — must still pass (no regression).
 
-```
-SWE-Bench Lite Dataset (300 tasks)
-    │
-    ├──▶ Problem Statement → Agent Prompt
-    │
-    ├──▶ File Paths from Patch → Context for Agent
-    │
-    └──▶ FAIL_TO_PASS / PASS_TO_PASS → Scoring Criteria
-    │
-    ▼
-AgentRunner + SWE-Bench Tools
-    │
-    ├──▶ view → Read files to understand bug
-    ├──▶ str_replace → Edit code to fix bug
-    ├──▶ create → Create new files if needed
-    ├──▶ insert → Insert code at specific lines
-    └──▶ bash → Run tests to verify fix
-    │
-    ▼
-Scoring
-    │
-    ├──▶ Did agent view files? (exploration)
-    ├──▶ Did agent make edits? (action)
-    ├──▶ Did agent run tests? (verification)
-    └──▶ (Full impl: FAIL_TO_PASS pass + PASS_TO_PASS pass)
-```
+None of steps 1–5 are done here. An earlier version of this benchmark "passed" a
+task whenever the agent merely **made an edit and ran `bash`** — a tool-usage
+check that says nothing about whether the bug was actually fixed. That number
+looked like a pass-rate but was not one, so it has been removed: `score()` now
+raises rather than returning a misleading result.
 
-### Mock Mode
-
-In `--mock` mode, the benchmark uses deterministic scoring without downloading the dataset or cloning repos:
-
-```bash
-tjbench agent --benchmark swe-bench-lite --original anthropic:claude-opus-4-7 --mock --limit 5
-```
-
-**Mock scoring checks:**
-1. Did the agent call `view`? (explored the codebase)
-2. Did the agent call `str_replace`, `create`, or `insert`? (made edits)
-3. Did the agent call `bash`? (ran tests)
-
-All three must be true for a passing mock score. This tests whether the agent follows the expected developer workflow.
-
-### Live Mode (Full Implementation)
-
-In live mode, the benchmark would:
-
-1. **Clone the repository** at the base commit
-2. **Set up the environment** (install dependencies)
-3. **Run the agent** with SWE-Bench tools operating on the real repo
-4. **Apply agent's edits** to the working directory
-5. **Run FAIL_TO_PASS tests** — must pass (bug is fixed)
-6. **Run PASS_TO_PASS tests** — must pass (no regressions)
-7. **Score** based on test results
-
-```bash
-tjbench agent --benchmark swe-bench-lite --original anthropic:claude-opus-4-7 --limit 10
-```
-
-## SWE-Bench Tools
-
-See [Agents - SWE-Bench Tools](agents.md#swe-bench-tools) for detailed documentation of each tool.
-
-### Tool Summary
-
-| Tool | Purpose | Dangerous |
-|------|---------|-----------|
-| `view` | Read file with line numbers | No |
-| `view_range` | Read specific line range | No |
-| `str_replace` | Exact-match string replacement | No |
-| `create` | Create new file | No |
-| `insert` | Insert after specific line | No |
-| `bash` | Run shell commands | Yes |
-
-### Safety Features
-
-- **Path traversal blocked**: `../../../etc/passwd` → error
-- **Exact-match enforcement**: Multiple occurrences of `old_str` → error
-- **Timeout protection**: Bash commands timeout after configurable seconds
-- **Dangerous flag**: `bash` marked for safety gate validation
-
-## Benchmark Implementation
-
-### `SWEBenchLiteBenchmark`
-
-[`benchmarks/swe_bench_lite.py`](../benchmarks/swe_bench_lite.py)
+## Behaviour
 
 ```python
-class SWEBenchLiteBenchmark(AgentBenchmark):
-    def __init__(self, limit=None, mock=False): ...
-    def tools(self) -> ToolRegistry: ...
-    def tasks(self, limit=None) -> list[SWEBenchTask]: ...
-    def score(self, task: SWEBenchTask, trace: AgentTrace) -> ScoreResult: ...
+from tjbench.benchmarks.swe_bench_lite import SWEBenchLiteBenchmark, EXPERIMENTAL_NOTICE
+
+bench = SWEBenchLiteBenchmark()
+bench.tools()                 # OK — returns the developer tool registry
+bench._build_prompt(example)  # OK — prompt construction
+bench.score(task, trace)      # raises NotImplementedError(EXPERIMENTAL_NOTICE)
 ```
 
-### `SWEBenchTask`
+Running it through the agent proof pipeline (`tjbench agent --benchmark
+swe-bench-lite …`) will therefore fail loudly during scoring with the
+experimental notice, instead of emitting a fake pass-rate.
 
-Extends `AgentTask` with SWE-Bench-specific fields:
+## Roadmap to a real benchmark
 
-```python
-@dataclass
-class SWEBenchTask(AgentTask):
-    repo: str                    # e.g., "astropy/astropy"
-    base_commit: str             # Git commit hash
-    test_patch: str              # Test diff
-    fail_to_pass: list[str]     # Test names that must pass
-    pass_to_pass: list[str]      # Test names that must still pass
-    problem_statement: str       # GitHub issue description
-    hints_text: str              # Additional hints
-```
-
-### Prompt Construction
-
-The prompt is built from the problem statement and includes:
-- Repository name
-- Issue ID
-- Problem description
-- Files that may need changes (extracted from patch)
-- Instructions to explore, fix, and test
-
-## Scoring
-
-### Mock Scoring
-
-Deterministic scoring based on tool usage:
-
-| Condition | Result |
-|-----------|--------|
-| Used `view` + edit tool + `bash` | PASS |
-| Missing `view` | FAIL (didn't explore) |
-| Missing edit tool | FAIL (didn't fix) |
-| Missing `bash` | FAIL (didn't verify) |
-
-### Live Scoring (Target)
-
-```python
-def score(task: SWEBenchTask, trace: AgentTrace) -> ScoreResult:
-    # 1. Apply agent's edits to repo
-    # 2. Run FAIL_TO_PASS tests
-    # 3. Run PASS_TO_PASS tests
-    # 4. Return pass/fail based on test results
-```
-
-| Condition | Result |
-|-----------|--------|
-| All FAIL_TO_PASS pass + All PASS_TO_PASS pass | PASS |
-| Any FAIL_TO_PASS fails | FAIL (bug not fixed) |
-| Any PASS_TO_PASS fails | FAIL (regression) |
-
-## Why This Matters
-
-### Before SWE-Bench Lite
-
-```text
-Agent Benchmarks:
-├── sample-agent (3 toy tasks)
-│   └── lookup_and_compute
-│   └── multi_step
-│   └── safety_check
-└── (nothing else)
-```
-
-The framework could evaluate tool-use, but only on artificial tasks.
-
-### After SWE-Bench Lite
-
-```text
-Agent Benchmarks:
-├── sample-agent (3 toy tasks — plumbing verification)
-└── swe-bench-lite (300 real tasks — capability evaluation)
-    └── Real GitHub issues
-    └── Real repositories
-    └── Real bug fixes
-    └── Real test verification
-```
-
-Now the framework can evaluate whether a cheaper model can **actually fix real bugs** in **real codebases**.
-
-## Roadmap: Full SWE-Bench Integration
-
-### Current (Lite)
-- Mock scoring based on tool usage
-- Dataset loading for prompt construction
-- Tool implementations for file editing
-
-### Next Steps
-1. **Repository cloning** — Clone repos at base commit
-2. **Environment setup** — Install dependencies
-3. **Test execution** — Run FAIL_TO_PASS and PASS_TO_PASS tests
-4. **Patch application** — Apply agent's edits as a git patch
-5. **Result reporting** — Full test output in ProofResult
+To turn this scaffold into a real benchmark, an implementer would wire
+`SWEBenchToolSet` into the run path and implement steps 1–5 above (repo
+checkout, env setup, patch application, test execution), then replace the
+`score()` gate with a verdict derived from `FAIL_TO_PASS` / `PASS_TO_PASS`
+results. Until then it stays disabled.
 
 ## Related Documentation
 
-- [Agents](agents.md) — AgentRunner, ToolRegistry, safety gate
+- [Agents](agents.md) — AgentRunner, ToolRegistry, safety gate, `SWEBenchToolSet`
 - [Benchmarks](benchmarks.md) — Benchmark protocols and registry
-- [Pipelines](pipelines.md) — Agent proof pipeline
-- [CLI Reference](cli-reference.md) — `tjbench agent` command
-- [SWE-Bench Official Repo](https://github.com/princeton-nlp/SWE-bench) — Original benchmark
+- [SWE-Bench Official Repo](https://github.com/princeton-nlp/SWE-bench) — the real benchmark this scaffold aims at

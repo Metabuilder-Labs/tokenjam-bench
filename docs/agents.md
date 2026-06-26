@@ -188,7 +188,9 @@ This is by design — we measure whether the cheaper model maintains the *full b
 
 [`agents/swe_bench_tools.py`](../agents/swe_bench_tools.py)
 
-Developer tools for repository editing and testing. Used by the [SWE-Bench Lite benchmark](benchmarks.md#swe-bench-lite).
+Developer tools for repository editing and testing, intended for the [SWE-Bench Lite benchmark](benchmarks.md#swe-bench-lite).
+
+> ⚠️ **Experimental scaffold.** `SWEBenchToolSet` is not yet wired into the benchmark's run path — `swe-bench-lite` scoring is disabled (fix-verification is not implemented). These tool implementations are tested in isolation and kept for a future real integration.
 
 ### SWEBenchToolSet
 
