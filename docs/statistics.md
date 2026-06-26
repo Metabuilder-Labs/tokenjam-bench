@@ -91,25 +91,33 @@ ProofResult
 │   └── delta = candidate_rate - original_rate
 │   └── [delta_lower, delta_upper]
 └── verdict
-    └── Based on: n, significant?, delta magnitude
+    └── Based on: n, significant?, delta sign
 ```
 
 ## Verdict Logic
 
+Computed by `_verdict(n_tasks, significant, delta_pp)` in `pipeline.py`, where
+`delta_pp = candidate_pass_rate − original_pass_rate` and `significant` is the
+McNemar result at alpha. The gate is `MIN_TASKS_FOR_VERDICT = 10`.
+
 | Condition | Verdict | Meaning |
 |-----------|---------|---------|
-| n < 30 and not significant | `insufficient_evidence` | Sample too small for confidence |
-| Significant, delta ≈ 0 | `preserved` | Cheaper model is just as accurate |
-| Significant, delta < -5pp | `regression_detected` | Cheaper model is worse |
-| Significant, delta > +5pp | `improved` | Cheaper model is better (rare) |
-| Not significant, |delta| < 5pp | `likely_preserved` | Probably fine, but not proven |
+| n < 10 | `insufficient_evidence` | Too few paired observations for McNemar to mean anything |
+| n ≥ 10, significant **and** delta < 0 | `significant_regression` | Candidate is significantly worse on this suite |
+| n ≥ 10, otherwise | `no_significant_regression` | No statistically significant regression detected |
+
+There are exactly three verdicts — `no_significant_regression`,
+`significant_regression`, `insufficient_evidence` — and never `SAFE` (which would
+assert equivalence the test cannot prove). A significant *improvement* still maps
+to `no_significant_regression`: the bench reports the absence of a regression, not
+a positive quality claim.
 
 ## Honesty Discipline
 
-- **Small samples are flagged**: n < 30 → `insufficient_evidence` regardless of observed rates
+- **Small samples are flagged**: n < 10 → `insufficient_evidence` regardless of observed rates
 - **No p-hacking**: Fixed alpha = 0.05, no multiple comparison correction needed (single test)
 - **CIs are reported**: Always show Wilson intervals, not just point estimates
-- **Effect size matters**: A "significant" p-value with tiny delta is still flagged as `preserved`
+- **No equivalence claim**: the verdict is the absence of a detected regression, never a positive "preserved" / "SAFE" assertion
 
 ## Related Documentation
 

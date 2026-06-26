@@ -105,7 +105,7 @@ tjbench agent --benchmark sample-agent \
 
 ### 🔁 Replay validation
 
-Replay your real TokenJam telemetry against the cheaper candidate. No synthetic tasks — your actual prompts, judged for equivalence.
+Replay your real TokenJam telemetry against the cheaper candidate. No synthetic tasks — your actual prompts, scored for **agreement with your historical outputs** (not correctness, not safety: the original model's output is the reference).
 
 ```bash
 tjbench replay \
@@ -205,7 +205,7 @@ TJBENCH_JUDGE=deepseek tjbench replay \
 | `judged` | DeepEval correctness | `[judge,providers]` | LLM-as-judge; key-gated |
 | `sample-agent` | tool use + safety gate | nothing (offline) | agent benchmark |
 | `swe-bench-lite` | real GitHub bug fixes | SWE-bench dataset | 300-task agent benchmark |
-| `replay` | equivalence to original output | `[providers]` + telemetry | your real sessions |
+| `replay` | agreement with the original model's own historical output | `[providers]` + telemetry | your real sessions; measures agreement-with-history, not correctness/safety |
 
 ---
 
@@ -272,6 +272,8 @@ All tests run offline with no provider SDKs or keys. Live-provider tests skip cl
 
 Accuracy = pass-rate on the chosen benchmark suite — never a general "quality preserved" claim. Reports record `n`, flag `--mock` runs as illustrative, and flag when cost fell back to TokenJam's `$0.50/$2.00` default placeholder rates. There is deliberately **no single `confidence = 95%` scalar** — the honest expression is the CI + p-value. Executing model-generated code (HumanEval) happens in a timed subprocess; run only trusted benchmark suites on a machine you control.
 
+> **Boundary statement.** tokenjam-bench is an *offline measurement layer*. It tells you whether a downsize candidate held up **on these benchmark suites**, and — for `replay` — whether it **agreed with your own historical outputs** (the original model's past output is the reference, so replay measures agreement-with-history, not correctness and not safety). It is **not** a runtime safety certification: it does not monitor production traffic, gate live requests, or guarantee the candidate will behave on inputs outside what was measured here.
+
 ---
 
 ## Project Layout
@@ -281,7 +283,7 @@ cli.py                CLI entry point (tjbench version | recommend | run | agent
 pipeline.py           Single-shot proof pipeline (run_proof, assemble_proof)
 agent_pipeline.py     Agent proof pipeline (run_agent_proof)
 replay.py             Telemetry loader (.jsonl / .duckdb read-only)
-replay_pipeline.py    Replay proof — real sessions, judge-scored equivalence
+replay_pipeline.py    Replay measurement — real sessions, judge-scored agreement with the original model's historical output
 report.py             ProofResult, ProofStats, TaskOutcome dataclasses
 stats.py              Wilson, McNemar exact, paired delta CI, pass@k (zero deps)
 cost.py               Pricing via tokenjam.core.pricing.get_rates

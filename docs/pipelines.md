@@ -87,13 +87,17 @@ What it does:
 
 ### Verdict Logic
 
+Implemented by `_verdict(n_tasks, significant, delta_pp)`, gated at
+`MIN_TASKS_FOR_VERDICT = 10` (`delta_pp = candidate_pass_rate − original_pass_rate`):
+
 | Condition | Verdict |
 |-----------|---------|
-| n < 30 and not significant | `insufficient_evidence` |
-| Significant, delta ≈ 0 | `preserved` |
-| Significant, delta < 0 (candidate worse) | `regression_detected` |
-| Significant, delta > 0 (candidate better) | `improved` (rare) |
-| Not significant, delta small | `likely_preserved` |
+| n < 10 | `insufficient_evidence` |
+| n ≥ 10, significant and delta < 0 | `significant_regression` |
+| n ≥ 10, otherwise | `no_significant_regression` |
+
+These three are the only verdicts (never `SAFE`). See
+[statistics.md](statistics.md#verdict-logic) for the full rationale.
 
 ## Agent Proof Pipeline
 

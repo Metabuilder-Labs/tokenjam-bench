@@ -33,18 +33,21 @@ The fastest way to see the pipeline in action is with `--mock`, which runs deter
 tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
 ```
 
-Output:
+Output (abridged):
 ```
-┌─────────────┬──────────┬──────────┬──────────┬──────────┐
-│ Metric      │ Original │ Candidate│ Delta    │ Verdict  │
-├─────────────┼──────────┼──────────┼──────────┼──────────┤
-│ Pass rate   │ 100%     │ 100%     │ 0pp      │ preserved│
-│ Cost        │ $0.42    │ $0.08    │ -$0.34   │ cheaper  │
-│ Tokens out  │ 1,024    │ 1,024    │ 0        │ ok       │
-└─────────────┴──────────┴──────────┴──────────┴──────────┘
+[MOCK — illustrative] samples (n=5, k=1) · tokenjam 0.5.2:
+anthropic:claude-opus-4-7 → anthropic:claude-haiku-4-5 · Δcost -84.0% (measured)
+· Δpass-rate +0.0pp [95% CI +0.0, +0.0] · McNemar p=1.000 → insufficient_evidence
+
+┃ Metric               ┃                  Original ┃                 Candidate ┃
+│ Pass rate (95% CI)   │             5/5 [57–100%] │             5/5 [57–100%] │
+│ Cost (USD, measured) │                 $0.001750 │                 $0.000280 │
+│ Output tokens        │                        44 │                        44 │
+
+verdict: insufficient_evidence  (n=5 < 10 — too few tasks for a significance verdict)
 ```
 
-> **Note**: `--mock` numbers are illustrative — for plumbing verification, not actual proofs. See [Honesty](#honesty) below.
+> **Note**: `--mock` numbers are illustrative — for plumbing verification, not actual proofs. With only n=5 sample tasks the verdict is `insufficient_evidence` (the gate is `MIN_TASKS_FOR_VERDICT = 10`); raise `--limit` on a real suite for a defensible result. See [Honesty](#honesty) below.
 
 ## Check What TokenJam Recommends
 

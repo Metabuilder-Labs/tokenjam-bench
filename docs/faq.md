@@ -90,12 +90,18 @@ With n=5 tasks, even a total wipeout (0% vs 100%) cannot reach p<0.05. This is m
 
 ### What's the verdict logic?
 
+There are exactly three verdicts, gated at `MIN_TASKS_FOR_VERDICT = 10` tasks
+(`delta = candidate_pass_rate − original_pass_rate`):
+
 | Condition | Verdict |
 |-----------|---------|
-| n < 30, not significant | `insufficient_evidence` |
-| Significant, delta ≈ 0 | `preserved` |
-| Significant, candidate worse | `regression_detected` |
-| Not significant, delta small | `likely_preserved` |
+| n < 10 | `insufficient_evidence` |
+| n ≥ 10, significant and delta < 0 | `significant_regression` |
+| n ≥ 10, otherwise | `no_significant_regression` |
+
+There is no `preserved` / `likely_preserved` / `regression_detected` / `improved`
+verdict, and never `SAFE`. The bench reports the *absence of a detected
+regression*, not a positive equivalence claim. See [statistics.md](statistics.md#verdict-logic) for details.
 
 ## Safety
 

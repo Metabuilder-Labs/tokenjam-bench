@@ -1,9 +1,17 @@
 # Replay validation (P0)
 
-Benchmarks (HumanEval, SWE-Bench Lite, …) prove a model's *capability*. **Replay
-validation proves TokenJam's downsize recommendation on YOUR real workload** —
-it re-runs your actual historical prompts on the cheaper candidate and checks
-whether the answers stay equivalent to what the original model produced.
+Benchmarks (HumanEval, SWE-Bench Lite, …) measure a model's *capability* against
+objective ground truth. **Replay measures something narrower and more honest:
+agreement with your own history.** It re-runs your actual historical prompts on
+the cheaper candidate and checks whether the answers agree with what the original
+model produced on those same prompts.
+
+> **What replay does NOT measure.** The reference is the *original model's own
+> historical output*, which has no gold answer attached — so replay measures
+> **agreement-with-your-history, not correctness and not safety**. A candidate
+> that disagrees with the original may be right or wrong; replay only tells you it
+> diverged. This is an offline measurement, **never a runtime safety
+> certification** and never "SAFE".
 
 ```
 TokenJam telemetry (exported, READ-ONLY)
@@ -19,14 +27,16 @@ like any external user.
 
 ## What it measures
 
-Real sessions have no gold answer, so the **original model's historical output
-is the equivalence reference**. The question replay answers is:
+Real sessions have no gold answer, so the **original model's historical output is
+the agreement reference**. The question replay answers is:
 
-> *On your real prompts, does the cheaper model produce answers equivalent to the
-> original?*
+> *On your real prompts, does the cheaper model agree with what the original model
+> already produced?*
 
-The verdict is evidence-based — **"no statistically significant divergence from
-the original"** — never "SAFE".
+That is **agreement-with-your-history** — not correctness (the reference is not a
+verified answer) and not safety (no production behaviour is observed). The verdict
+is evidence-based — **"no statistically significant divergence from the original's
+historical output"** — never "SAFE" and never a certification.
 
 ## Telemetry input
 
@@ -64,8 +74,8 @@ python3 run.py replay --telemetry sessions.jsonl --mock --mock-candidate-accurac
 ## Modes
 
 - **default** — the original output is the reference (passes trivially); the
-  candidate's *equivalence rate* gets a Wilson CI, and McNemar tests whether its
-  divergences are significant.
+  candidate's *agreement rate* (with that historical output) gets a Wilson CI, and
+  McNemar tests whether its divergences are significant.
 - **`--control`** — also re-runs the original model and judges it against its own
   history, so McNemar compares the candidate against the original's run-to-run /
   judge noise (the most rigorous form). Doubles model calls.
@@ -83,5 +93,5 @@ spend, priced by TokenJam.
 - **Per-call replay**: each captured LLM call is replayed independently with its
   reconstructed prompt. Full multi-turn conversation reconstruction is a later
   milestone.
-- Equivalence is judged against the original output, which is itself a model
-  output — `--control` quantifies that reference's own noise.
+- Agreement is judged against the original output, which is itself a model output
+  (not a verified gold answer) — `--control` quantifies that reference's own noise.
