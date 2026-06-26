@@ -49,8 +49,13 @@ def get_agent_benchmark(name: str):
     if name in _SCENARIO_SUITE_NAMES:  # P1 Real Scenario Library
         from tjbench.benchmarks.scenario_suites import get_scenario_suite
         return get_scenario_suite(name)
+    # Agentic Production Workflows (n8n, coding-workflow) reuse this path.
+    from tjbench.workflows import AGENTIC_WORKFLOW_NAMES, get_agentic_workflow
+    if name in AGENTIC_WORKFLOW_NAMES:
+        return get_agentic_workflow(name)
     raise ValueError(
-        f"Unknown agent benchmark '{name}'. Available: {AGENT_BENCHMARK_NAMES}"
+        f"Unknown agent benchmark '{name}'. Available: "
+        f"{AGENT_BENCHMARK_NAMES + AGENTIC_WORKFLOW_NAMES}"
     )
 
 

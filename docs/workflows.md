@@ -26,11 +26,11 @@ it reports `no_significant_regression` / `significant_regression` /
 | Suite | Kind | Status |
 |---|---|---|
 | `customer-support` | text · judge-scored (grounded support tickets) | **shipped** |
-| `enterprise-rag` | text · judge-scored (KB grounding / citations) | planned |
-| `email-assistant` | text · judge-scored (reply/summarize/triage) | planned |
-| `research-assistant` | text · judge-scored (multi-doc synthesis) | planned |
-| `n8n` | agentic · `AgentRunner` trace (tool order + final output) | planned |
-| `coding` | agentic · `AgentRunner` trace (repo edit + tests, safety) | planned |
+| `enterprise-rag` | text · judge-scored (KB grounding / citations) | **shipped** |
+| `email-assistant` | text · judge-scored (reply/summarize/triage/extract) | **shipped** |
+| `research-assistant` | text · judge-scored (multi-doc synthesis) | **shipped** |
+| `n8n` | agentic · `AgentRunner` trace (tool order + safety gate) | **shipped** |
+| `coding-workflow` | agentic · `AgentRunner` trace (edit/test/PR, safety) | **shipped** |
 
 The agentic suites reuse the Scenario Library's `AgentRunner` + safety gate; the
 text suites reuse the `judged` DeepEval seam. Adding a suite is **pure data**:

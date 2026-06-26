@@ -1,0 +1,127 @@
+{
+  "suite": "enterprise-rag",
+  "description": "Enterprise retrieval-augmented QA over a mixed internal knowledge base (HR policies, engineering runbooks, legal/security, product manuals). The reference answer must stay grounded in the provided documents and cite them; abstaining ('not in the docs') is the correct answer when the KB doesn't cover it. The candidate is judged on grounding + correctness against the reference.",
+  "version": "1.0",
+  "cases": [
+    {
+      "id": "rag/pto-accrual",
+      "question": "How much PTO do full-time employees accrue per year and does it roll over?",
+      "expected_response": "Full-time employees accrue 20 days of PTO per year (1.67 days/month). Up to 5 unused days roll over into the next year; anything above 5 is forfeited at year-end.",
+      "knowledge_context": ["HR Policy 4.2 — PTO: Full-time staff accrue 20 days annually (1.67/month). Carryover is capped at 5 days; excess is forfeited on Dec 31."],
+      "citation": "HR Policy 4.2",
+      "domain": "HR",
+      "category": "Policy lookup",
+      "difficulty": "easy"
+    },
+    {
+      "id": "rag/parental-leave",
+      "question": "What is the paid parental leave entitlement for a new parent?",
+      "expected_response": "New parents are entitled to 16 weeks of fully paid parental leave, which must be taken within 12 months of the birth or adoption.",
+      "knowledge_context": ["HR Policy 4.7 — Parental Leave: 16 weeks at 100% pay for all new parents, to be used within 12 months of the qualifying event."],
+      "citation": "HR Policy 4.7",
+      "domain": "HR",
+      "category": "Policy lookup",
+      "difficulty": "easy"
+    },
+    {
+      "id": "rag/oncall-sev1",
+      "question": "What is the response-time SLA for a Sev-1 incident and who gets paged?",
+      "expected_response": "A Sev-1 requires acknowledgement within 15 minutes. PagerDuty pages the primary on-call engineer first, then the secondary after 10 minutes with no ack, and the engineering manager is auto-notified.",
+      "knowledge_context": ["Incident Runbook §2: Sev-1 ack SLA is 15 minutes. Escalation: primary on-call -> secondary at +10min -> EM auto-notified. Sev-2 ack SLA is 1 hour."],
+      "citation": "Incident Runbook §2",
+      "domain": "Engineering",
+      "category": "Runbook",
+      "difficulty": "medium"
+    },
+    {
+      "id": "rag/db-restore",
+      "question": "What's the documented procedure to restore the production database from a backup?",
+      "expected_response": "Restores run from the nightly encrypted snapshot in S3: page the on-call DBA, restore to a staging instance first, validate row counts and a smoke query, then promote. Never restore directly over production.",
+      "knowledge_context": ["DB Runbook §5: Restore from the nightly encrypted S3 snapshot. Always restore to staging, validate (row counts + smoke query), then promote. Direct-over-prod restores are prohibited."],
+      "citation": "DB Runbook §5",
+      "domain": "Engineering",
+      "category": "Runbook",
+      "difficulty": "hard"
+    },
+    {
+      "id": "rag/data-retention",
+      "question": "How long do we retain customer personal data after account deletion?",
+      "expected_response": "Customer personal data is purged within 30 days of account deletion, except records we're legally required to keep (e.g., invoices for 7 years for tax purposes), which are retained in a restricted archive.",
+      "knowledge_context": ["Data Retention Policy 3.1: Personal data is deleted within 30 days of account closure. Legal exceptions (tax/invoice records: 7 years) are kept in a restricted, access-logged archive."],
+      "citation": "Data Retention Policy 3.1",
+      "domain": "Legal",
+      "category": "Compliance",
+      "difficulty": "medium"
+    },
+    {
+      "id": "rag/vendor-security",
+      "question": "What security review is required before onboarding a new SaaS vendor?",
+      "expected_response": "New SaaS vendors require a completed security questionnaire, a current SOC 2 Type II report (or equivalent), and a DPA signed before any production data is shared. Security sign-off is mandatory.",
+      "knowledge_context": ["Vendor Security Standard 2.4: Before onboarding, collect a security questionnaire, a valid SOC 2 Type II (or ISO 27001), and a signed DPA. No production data may be shared without Security sign-off."],
+      "citation": "Vendor Security Standard 2.4",
+      "domain": "Security",
+      "category": "Compliance",
+      "difficulty": "medium"
+    },
+    {
+      "id": "rag/expense-limit",
+      "question": "What's the per-meal expense limit for domestic travel, and do I need receipts?",
+      "expected_response": "The domestic per-meal limit is $40 (breakfast $15, lunch $25 combined cap, dinner included in the daily $75 cap). Itemized receipts are required for any single expense over $25.",
+      "knowledge_context": ["Travel & Expense Policy 6.3: Domestic daily meal cap is $75. Receipts required for any line item over $25. International caps differ — see §6.4."],
+      "citation": "Travel & Expense Policy 6.3",
+      "domain": "Finance",
+      "category": "Policy lookup",
+      "difficulty": "medium"
+    },
+    {
+      "id": "rag/api-rate-limit",
+      "question": "What are the API rate limits on the Pro plan and what happens when I exceed them?",
+      "expected_response": "The Pro plan allows 600 requests per minute per API key. Exceeding it returns HTTP 429 with a Retry-After header; sustained overage for 24 hours triggers an automated upgrade prompt, not a hard block.",
+      "knowledge_context": ["API Reference — Limits: Pro = 600 req/min/key. Over-limit returns 429 + Retry-After. No hard ban; sustained overage (24h) surfaces an upgrade prompt. Enterprise = custom."],
+      "citation": "API Reference — Limits",
+      "domain": "Product",
+      "category": "Product manual",
+      "difficulty": "easy"
+    },
+    {
+      "id": "rag/sso-setup",
+      "question": "Which SSO protocols does the product support and is SCIM provisioning available?",
+      "expected_response": "The product supports SAML 2.0 and OIDC for SSO on Business and Enterprise plans. SCIM 2.0 user provisioning/deprovisioning is available on Enterprise only.",
+      "knowledge_context": ["Admin Guide — SSO: SAML 2.0 and OIDC supported (Business+). SCIM 2.0 provisioning is Enterprise-only. SSO is not available on the Free/Pro tiers."],
+      "citation": "Admin Guide — SSO",
+      "domain": "Product",
+      "category": "Product manual",
+      "difficulty": "medium"
+    },
+    {
+      "id": "rag/incident-postmortem",
+      "question": "When is a postmortem required and what's the deadline to publish it?",
+      "expected_response": "A blameless postmortem is required for every Sev-1 and any Sev-2 that breached its SLA. It must be published within 5 business days of incident resolution and reviewed in the weekly reliability meeting.",
+      "knowledge_context": ["Incident Runbook §7: Postmortems are mandatory for all Sev-1 and SLA-breaching Sev-2 incidents, published within 5 business days, blameless, and reviewed weekly."],
+      "citation": "Incident Runbook §7",
+      "domain": "Engineering",
+      "category": "Runbook",
+      "difficulty": "medium"
+    },
+    {
+      "id": "rag/not-covered",
+      "question": "What is our policy on employee stock option vesting acceleration on acquisition?",
+      "expected_response": "I can't answer that from the available documents — the knowledge base doesn't cover equity/option vesting on acquisition. Please check with People Ops or Legal for the equity plan terms.",
+      "knowledge_context": ["HR Policy 4.2 — PTO …", "Travel & Expense Policy 6.3 …", "Incident Runbook §2 …"],
+      "citation": null,
+      "domain": "HR",
+      "category": "Abstain (not in KB)",
+      "difficulty": "hard"
+    },
+    {
+      "id": "rag/password-rotation",
+      "question": "How often must employees rotate their passwords and is MFA mandatory?",
+      "expected_response": "Passwords no longer have a forced rotation schedule (rotation is only required on suspected compromise), but MFA is mandatory for all employees on every internal system.",
+      "knowledge_context": ["Security Policy 1.8: Per NIST guidance, scheduled password rotation is not required; rotate only on suspected compromise. MFA is mandatory on all internal systems, no exceptions."],
+      "citation": "Security Policy 1.8",
+      "domain": "Security",
+      "category": "Compliance",
+      "difficulty": "medium"
+    }
+  ]
+}

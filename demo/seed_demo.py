@@ -52,6 +52,11 @@ TOKPROFILE = {
     "research-agent": (2600, 6400, 520, 1240),
     "browser-agent": (2200, 5600, 420, 980),
     "customer-support": (600, 1800, 180, 560),
+    "enterprise-rag": (1200, 3600, 200, 640),
+    "email-assistant": (500, 1600, 160, 520),
+    "research-assistant": (1800, 4800, 260, 760),
+    "n8n": (1400, 4200, 300, 760),
+    "coding-workflow": (2600, 7000, 500, 1300),
 }
 
 # Difficulty + ground-truth provenance per benchmark (demo metadata).
@@ -67,6 +72,11 @@ META = {
     "research-agent": ("Research agent", "hard", "Scenario suite (gated tools)"),
     "browser-agent": ("Browser agent", "hard", "Scenario suite (gated tools)"),
     "customer-support": ("Customer support", "medium", "Support tickets (16 grounded)"),
+    "enterprise-rag": ("Enterprise RAG", "medium", "Internal KB (HR/Eng/Legal/Product)"),
+    "email-assistant": ("Email assistant", "easy", "Inbox tasks (12)"),
+    "research-assistant": ("Research assistant", "hard", "Source synthesis (12)"),
+    "n8n": ("n8n automation", "hard", "Automation workflows (gated tools)"),
+    "coding-workflow": ("Coding workflow", "hard", "PR-shaped coding tasks (gated)"),
 }
 
 FAIL_CATS = {
@@ -81,6 +91,11 @@ FAIL_CATS = {
     "research-agent": ["shallow", "unsafe-publish", "missed-source"],
     "browser-agent": ["wrong-extract", "unsafe-purchase", "nav-fail"],
     "customer-support": ["wrong-policy", "missed-context", "off-tone", "unsafe-action"],
+    "enterprise-rag": ["ungrounded", "wrong-doc", "missed-citation", "hallucination"],
+    "email-assistant": ["wrong-task", "off-tone", "incomplete", "missed-detail"],
+    "research-assistant": ["shallow", "fabricated-cite", "missed-source", "unsupported-claim"],
+    "n8n": ["wrong-tool", "wrong-order", "unsafe-action", "incomplete"],
+    "coding-workflow": ["broke-test", "wrong-edit", "unsafe-action", "no-commit"],
 }
 
 
@@ -116,7 +131,8 @@ def latency(bench, cheap=False):
     base = {"swe-bench-lite": 42000, "coding-assistant": 28000, "research-agent": 22000,
             "browser-agent": 18000, "humaneval": 9000, "mbpp": 6000, "judged": 11000,
             "replay": 7000, "rag-support": 8000, "gsm8k": 4200,
-            "customer-support": 5200}[bench]
+            "customer-support": 5200, "enterprise-rag": 6000, "email-assistant": 3800,
+            "research-assistant": 14000, "n8n": 9000, "coding-workflow": 24000}[bench]
     base = base * (0.42 if cheap else 1.0)
     return int(base * RNG.uniform(0.85, 1.15))
 
@@ -208,9 +224,13 @@ def write_artifact(cfg, bench, version, ts, n, orig_rate, cand_rate, b, c, *, mo
         d_out["unsafe_actions_blocked"] = RNG.randint(0, 3)
         d_out["risk_category"] = {"coding-assistant": "code-mutation", "rag-support": "financial",
                                   "research-agent": "publication", "browser-agent": "payment"}[bench]
-    if bench == "customer-support":
+    if bench in ("customer-support", "enterprise-rag", "email-assistant",
+                 "research-assistant", "n8n", "coding-workflow"):
         d_out["pass_threshold"] = 0.8
-        d_out["safety_gate"] = "enforced"
+        d_out["workflow"] = True
+        if bench in ("customer-support", "n8n", "coding-workflow"):
+            d_out["safety_gate"] = "enforced"
+            d_out["unsafe_actions_blocked"] = RNG.randint(0, 3)
 
     fn = OUT / f"tjbench_{bench}_tj{version}_{int(ts)}_{RNG.randrange(1_000_000):06d}.json"
     fn.write_text(json.dumps(d_out, indent=2))
@@ -257,11 +277,23 @@ def main():
     emit(A, "replay", "0.5.0", 90, 0.94, 0.933, b=5, c=4, jitter=6)
     emit(A, "replay", "0.5.1", 120, 0.95, 0.95, b=4, c=4, jitter=6)
 
-    # ---- Production Workflows (customer-support): grounded support tickets ----
+    # ---- Production Workflows: text (judge-scored) + agentic (AgentRunner) ----
     emit(A, "customer-support", "0.5.0", 16, 0.94, 0.94, b=1, c=1, jitter=7)
     emit(A, "customer-support", "0.5.1", 16, 0.94, 0.94, b=1, c=1, jitter=7)
     emit(S, "customer-support", "0.5.1", 16, 0.93, 0.94, b=1, c=2, jitter=7)
     emit(O_, "customer-support", "0.5.1", 16, 0.92, 0.90, b=2, c=1, jitter=7)
+    emit(A, "enterprise-rag", "0.5.0", 60, 0.93, 0.917, b=3, c=2, jitter=7)
+    emit(A, "enterprise-rag", "0.5.1", 60, 0.93, 0.933, b=2, c=2, jitter=7)
+    emit(O_, "enterprise-rag", "0.5.1", 60, 0.92, 0.90, b=3, c=2, jitter=7)
+    emit(A, "email-assistant", "0.5.1", 48, 0.958, 0.958, b=1, c=1, jitter=7)
+    emit(S, "email-assistant", "0.5.1", 48, 0.938, 0.958, b=1, c=2, jitter=7)
+    emit(A, "research-assistant", "0.5.1", 36, 0.889, 0.861, b=3, c=2, jitter=7)
+    emit(D, "research-assistant", "0.5.1", 36, 0.861, 0.833, b=4, c=3, jitter=7)
+    emit(A, "n8n", "0.5.0", 40, 0.95, 0.95, b=1, c=1, jitter=8)
+    emit(A, "n8n", "0.5.1", 40, 0.95, 0.95, b=1, c=1, jitter=8)
+    emit(O_, "n8n", "0.5.1", 40, 0.90, 0.625, b=13, c=2, jitter=8)            # REGRESSION (unsafe/order)
+    emit(A, "coding-workflow", "0.5.1", 30, 0.90, 0.867, b=3, c=2, jitter=8)
+    emit(S, "coding-workflow", "0.5.1", 30, 0.90, 0.90, b=2, c=2, jitter=8)
 
     # ---- sonnet→haiku: cleared ----
     for ver in ("0.5.0", "0.5.1"):

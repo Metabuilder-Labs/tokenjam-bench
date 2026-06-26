@@ -1,0 +1,115 @@
+{
+  "suite": "email-assistant",
+  "description": "Email-assistant tasks across an enterprise inbox: reply drafting, summarization, priority triage, spam detection, meeting + action-item extraction, and follow-ups. Each task carries the email plus an instruction; the reference output is the correct, professionally-toned result the candidate is judged against.",
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": "email/reply-reschedule",
+      "task_type": "reply",
+      "input": "Email from a client: \"Something came up and I can't make our 2pm demo tomorrow. Can we move it?\" Draft a brief, professional reply offering two alternative times.",
+      "expected_response": "Hi — no problem at all, thanks for letting me know. Would Thursday at 11am or Friday at 2pm work for the demo? Happy to adjust if neither fits. Looking forward to it.",
+      "tone": "professional",
+      "category": "Reply drafting",
+      "difficulty": "easy"
+    },
+    {
+      "id": "email/reply-refund-firm",
+      "task_type": "reply",
+      "input": "An angry customer demands a refund for a non-refundable setup fee. Draft an empathetic but firm reply that explains the fee is non-refundable while offering a goodwill service credit.",
+      "expected_response": "I'm sorry for the frustration. The one-time setup fee is non-refundable as noted at checkout, so I'm not able to refund it. To make things right, I'd like to apply a goodwill service credit to your next invoice — let me know and I'll add it today.",
+      "tone": "empathetic-firm",
+      "category": "Reply drafting",
+      "difficulty": "hard"
+    },
+    {
+      "id": "email/summarize-thread",
+      "task_type": "summarize",
+      "input": "Summarize this 4-message thread in 2 sentences: Sales asks Eng for a custom export feature; Eng says it's ~2 weeks; Sales says the customer needs it by month-end; Eng agrees to prioritize if the Acme migration slips a week.",
+      "expected_response": "Sales requested a custom export feature that the customer needs by month-end, and Engineering estimated about two weeks. Engineering agreed to prioritize it on the condition that the Acme migration moves out by one week.",
+      "tone": "neutral",
+      "category": "Summarization",
+      "difficulty": "medium"
+    },
+    {
+      "id": "email/triage-priority",
+      "task_type": "triage",
+      "input": "Classify the priority (low/normal/high/urgent) of this email and give a one-line reason: \"Production checkout is returning 500s for all EU customers since 9am — revenue impact.\"",
+      "expected_response": "Urgent — a production outage affecting all EU checkout with direct revenue impact requires immediate incident response.",
+      "tone": "neutral",
+      "category": "Priority classification",
+      "difficulty": "easy"
+    },
+    {
+      "id": "email/triage-spam",
+      "task_type": "spam",
+      "input": "Is this spam/phishing? \"Your account will be SUSPENDED in 24h. Verify now at http-secure-login.example-verify.ru using your password.\" Answer yes/no with a one-line reason.",
+      "expected_response": "Yes — this is phishing: it uses urgency, a suspicious non-corporate domain, and asks you to enter your password, which legitimate account emails never do.",
+      "tone": "neutral",
+      "category": "Spam detection",
+      "difficulty": "easy"
+    },
+    {
+      "id": "email/extract-meeting",
+      "task_type": "extract",
+      "input": "Extract the meeting details as date, time, and attendees: \"Let's lock the QBR for Tuesday Jan 14 at 3:30pm ET. I'll bring Priya and Marcus; please add your RevOps lead.\"",
+      "expected_response": "Date: Tuesday, January 14. Time: 3:30pm ET. Attendees: Priya, Marcus, the sender, and the recipient's RevOps lead.",
+      "tone": "neutral",
+      "category": "Meeting extraction",
+      "difficulty": "medium"
+    },
+    {
+      "id": "email/extract-actions",
+      "task_type": "extract",
+      "input": "List the action items and owners from: \"Per today's call: Dana will send the revised SOW by Friday, Sam owns the security questionnaire, and I'll loop in legal once the SOW is back.\"",
+      "expected_response": "1) Dana — send the revised SOW by Friday. 2) Sam — complete the security questionnaire. 3) Sender — loop in legal once the SOW is returned.",
+      "tone": "neutral",
+      "category": "Action item extraction",
+      "difficulty": "medium"
+    },
+    {
+      "id": "email/followup-noreply",
+      "task_type": "followup",
+      "input": "Write a short, polite follow-up to a prospect who hasn't replied to a proposal sent 6 days ago, without being pushy.",
+      "expected_response": "Hi — just floating this back to the top of your inbox in case it got buried. No rush at all; I'd love to hear any questions on the proposal whenever it's convenient, and I'm happy to hop on a quick call if that's easier.",
+      "tone": "friendly-professional",
+      "category": "Follow-up generation",
+      "difficulty": "medium"
+    },
+    {
+      "id": "email/reply-decline-meeting",
+      "task_type": "reply",
+      "input": "Politely decline a vendor's request for a 'quick 30-minute intro call' because there's no current need, while leaving the door open.",
+      "expected_response": "Thanks for reaching out. We don't have a need in this area right now, so I'll pass on a call for the moment — but I've kept your details and will reach back out if that changes. Appreciate you thinking of us.",
+      "tone": "professional",
+      "category": "Reply drafting",
+      "difficulty": "easy"
+    },
+    {
+      "id": "email/summarize-exec",
+      "task_type": "summarize",
+      "input": "Give a one-sentence executive summary: \"Q3 churn rose to 4.1% from 3.2%, driven mostly by SMB; enterprise net retention stayed at 112%; the team is shipping a usage-based onboarding flow to address SMB activation.\"",
+      "expected_response": "Q3 churn rose to 4.1% (from 3.2%) on SMB weakness while enterprise net retention held at 112%, and the team is shipping a usage-based onboarding flow to improve SMB activation.",
+      "tone": "executive",
+      "category": "Summarization",
+      "difficulty": "medium"
+    },
+    {
+      "id": "email/triage-route",
+      "task_type": "triage",
+      "input": "Which team should handle this and why (Billing, Support, or Security)? \"I think someone else logged into my account from a country I've never visited.\"",
+      "expected_response": "Security — a possible unauthorized account access is a security concern; it should be routed to Security for investigation and a forced credential reset, with Support assisting the customer.",
+      "tone": "neutral",
+      "category": "Priority classification",
+      "difficulty": "medium"
+    },
+    {
+      "id": "email/reply-sensitive-data",
+      "task_type": "reply",
+      "input": "A customer emails asking you to reply with their full credit card number on file 'to confirm it'. Draft a safe reply.",
+      "expected_response": "For your security I'm not able to share full card numbers by email — we only ever store and display the last four digits. I can confirm the card ending in those four digits, or send you a secure link to update your payment method. Which would you prefer?",
+      "tone": "professional",
+      "category": "Reply drafting",
+      "difficulty": "hard"
+    }
+  ]
+}

@@ -1,0 +1,148 @@
+{
+  "suite": "research-assistant",
+  "description": "Research-assistant tasks: synthesize multiple provided sources into grounded answers (multi-document synthesis, competitive analysis, market sizing, trend summaries). Sources are supplied inline; the reference answer stays grounded in them and does not fabricate citations. The candidate is judged on grounding + synthesis quality against the reference.",
+  "version": "1.0",
+  "tasks": [
+    {
+      "id": "research/synthesize-trend",
+      "question": "Synthesize the dominant 2025 enterprise-AI adoption trend from the two sources.",
+      "knowledge_context": [
+        "Source A (industry survey): 71% of enterprises moved at least one agentic workflow to production in 2025, up from 22% in 2024.",
+        "Source B (analyst note): spend shifted from model experimentation toward evaluation, observability, and cost control as agents reached production."
+      ],
+      "expected_response": "Both sources point to the same 2025 trend: agentic workflows crossed into production at scale (71% of enterprises, up from 22%), and as they did, investment shifted from experimentation toward evaluation, observability, and cost control [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Multi-document synthesis",
+      "difficulty": "medium"
+    },
+    {
+      "id": "research/compare-conflicting",
+      "question": "Two sources disagree on remote-work productivity. Summarize the disagreement without picking a side.",
+      "knowledge_context": [
+        "Source A (firm study): fully-remote engineering teams shipped 12% more story points but reported weaker onboarding for juniors.",
+        "Source B (meta-analysis): found no significant productivity difference and warned that self-reported velocity is unreliable."
+      ],
+      "expected_response": "The sources conflict: Source A reports remote teams shipped 12% more story points (with weaker junior onboarding), while Source B's meta-analysis found no significant productivity difference and cautioned that self-reported velocity is unreliable. The disagreement largely reflects different methods and metrics rather than a settled result [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Conflicting sources",
+      "difficulty": "hard"
+    },
+    {
+      "id": "research/market-sizing",
+      "question": "Estimate the serviceable market from the sources and show the reasoning.",
+      "knowledge_context": [
+        "Source A: there are ~50,000 mid-market software companies in the target regions.",
+        "Source B: ~40% run AI workloads in production today; the product's annual price is ~$12,000."
+      ],
+      "expected_response": "Serviceable market ≈ 50,000 companies × 40% with production AI workloads = 20,000 target accounts; at ~$12,000/yr that's a serviceable revenue opportunity of about $240M/yr, before win-rate assumptions [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Market sizing",
+      "difficulty": "hard"
+    },
+    {
+      "id": "research/competitive-positioning",
+      "question": "From the sources, summarize how the product is positioned versus two competitors in one paragraph.",
+      "knowledge_context": [
+        "Source A: Competitor X is cheapest but lacks statistical rigor in its eval reports.",
+        "Source B: Competitor Y has strong dashboards but is cloud-only with no offline mode; the product differentiates on local-first, statistically-hedged evaluation."
+      ],
+      "expected_response": "The product sits between the two: cheaper Competitor X wins on price but offers little statistical rigor, while Competitor Y has strong dashboards yet is cloud-only with no offline mode. The product's differentiation is local-first operation plus statistically-hedged evaluation (CIs and significance rather than a single 'safe' score) [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Competitive analysis",
+      "difficulty": "medium"
+    },
+    {
+      "id": "research/timeline-extract",
+      "question": "Extract a chronological timeline of the three milestones from the source.",
+      "knowledge_context": [
+        "Source A: the project began a private beta in March, opened a public beta in June, and reached general availability in September."
+      ],
+      "expected_response": "Timeline: March — private beta begins; June — public beta opens; September — general availability [Source A].",
+      "sources": ["Source A"],
+      "category": "Multi-document synthesis",
+      "difficulty": "easy"
+    },
+    {
+      "id": "research/risk-summary",
+      "question": "Summarize the top two adoption risks the sources raise for production AI agents.",
+      "knowledge_context": [
+        "Source A: silent quality regressions when models are swapped for cheaper ones without re-validation.",
+        "Source B: unbounded cost from verbose reasoning models and from agent retry loops."
+      ],
+      "expected_response": "The two leading risks are: (1) silent quality regressions when models are swapped for cheaper ones without re-validation, and (2) unbounded cost from verbose reasoning models and agent retry loops [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Risk synthesis",
+      "difficulty": "medium"
+    },
+    {
+      "id": "research/define-grounded",
+      "question": "Using only the source, define 'net revenue retention' in one sentence.",
+      "knowledge_context": [
+        "Source A: Net revenue retention measures recurring revenue from existing customers over a period, including expansion and churn, expressed as a percentage of the starting recurring revenue."
+      ],
+      "expected_response": "Net revenue retention is the recurring revenue from existing customers over a period — including expansion and churn — expressed as a percentage of the starting recurring revenue [Source A].",
+      "sources": ["Source A"],
+      "category": "Definition (grounded)",
+      "difficulty": "easy"
+    },
+    {
+      "id": "research/abstain-missing",
+      "question": "What is the projected 2027 market share of the product?",
+      "knowledge_context": [
+        "Source A: 2025 adoption survey …",
+        "Source B: competitive positioning note …"
+      ],
+      "expected_response": "The provided sources don't contain a 2027 market-share projection, so I can't give one without speculating. I can summarize current adoption and positioning from the sources, but a 2027 share figure would require a forecast that isn't supported here.",
+      "sources": ["Source A", "Source B"],
+      "category": "Abstain (unsupported)",
+      "difficulty": "hard"
+    },
+    {
+      "id": "research/two-source-agree",
+      "question": "Do the sources agree on the main driver of churn? Summarize.",
+      "knowledge_context": [
+        "Source A: churn is concentrated in SMB accounts that never reach activation.",
+        "Source B: the strongest churn predictor is failure to complete onboarding in the first 14 days."
+      ],
+      "expected_response": "Yes — both point to early activation: Source A finds churn concentrated in SMB accounts that never activate, and Source B identifies failure to complete onboarding within 14 days as the strongest churn predictor. The shared driver is weak early activation/onboarding [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Multi-document synthesis",
+      "difficulty": "medium"
+    },
+    {
+      "id": "research/trend-report",
+      "question": "Write a two-sentence trend report on evaluation tooling from the sources.",
+      "knowledge_context": [
+        "Source A: demand for LLM evaluation tooling grew sharply in 2025 as agents hit production.",
+        "Source B: buyers increasingly require statistical rigor (confidence intervals, significance tests) rather than single accuracy scores."
+      ],
+      "expected_response": "Demand for LLM evaluation tooling rose sharply in 2025 as agentic systems reached production. Buyers are increasingly demanding statistical rigor — confidence intervals and significance tests — rather than single accuracy scores [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Trend report",
+      "difficulty": "medium"
+    },
+    {
+      "id": "research/quantify-claim",
+      "question": "What share of cost savings came from token reduction vs cheaper per-token rates, per the source?",
+      "knowledge_context": [
+        "Source A: in the migration study, ~60% of the cost saving came from the cheaper model emitting fewer tokens and ~40% from its lower per-token price."
+      ],
+      "expected_response": "Per the source, about 60% of the savings came from the cheaper model emitting fewer tokens and about 40% from its lower per-token rate [Source A].",
+      "sources": ["Source A"],
+      "category": "Quantitative extraction",
+      "difficulty": "medium"
+    },
+    {
+      "id": "research/recommendation",
+      "question": "Based on the sources, give a one-paragraph recommendation on whether to adopt continuous benchmarking.",
+      "knowledge_context": [
+        "Source A: teams that re-benchmarked on every model/version change caught regressions before production.",
+        "Source B: ad-hoc evaluation missed regressions that surfaced as customer-visible incidents."
+      ],
+      "expected_response": "Adopt continuous benchmarking: the sources show teams that re-benchmarked on every model or version change caught regressions before they reached production, whereas ad-hoc evaluation let regressions slip through and surface as customer-visible incidents. The evidence favors automated, recurring evaluation over one-off checks [Source A; Source B].",
+      "sources": ["Source A", "Source B"],
+      "category": "Recommendation",
+      "difficulty": "medium"
+    }
+  ]
+}

@@ -750,7 +750,7 @@ function reportActs(r){return `<div class=acts>
 async function loadRuns(){return (await getJSON("/api/runs"))||[];}
 function bucket(runs){const by={};runs.forEach(r=>{(by[r.benchmark]=by[r.benchmark]||[]).push(r);});return by;}
 const SCEN=new Set(["coding-assistant","rag-support","research-agent","browser-agent"]);
-const PROD=new Set(["customer-support","n8n","enterprise-rag","email-assistant","research-assistant"]);
+const PROD=new Set(["customer-support","enterprise-rag","email-assistant","research-assistant","n8n","coding-workflow"]);
 const CAT={humaneval:"Executable",gsm8k:"Executable","swe-bench-lite":"Executable",samples:"Executable",
  mbpp:"Executable",replay:"Replay",judged:"LLM-judged"};
 function catOf(b){if(PROD.has(b))return"Production Workflows";if(SCEN.has(b))return"Scenarios";return CAT[b]||"Other";}

@@ -2,9 +2,20 @@
 same proof stats (Wilson CI + McNemar + cost) as every other benchmark."""
 from __future__ import annotations
 
-from tjbench.benchmarks import get_benchmark
+import pytest
+
+from tjbench.agent_pipeline import run_agent_proof
+from tjbench.benchmarks import get_agent_benchmark, get_benchmark
 from tjbench.pipeline import run_proof
-from tjbench.workflows import WORKFLOW_NAMES, get_workflow, workflow_label
+from tjbench.workflows import (
+    AGENTIC_WORKFLOW_NAMES,
+    ALL_WORKFLOW_NAMES,
+    WORKFLOW_NAMES,
+    get_agentic_workflow,
+    get_workflow,
+    is_agentic_workflow,
+    workflow_label,
+)
 
 
 def test_customer_support_dataset_loads():
@@ -53,3 +64,38 @@ def test_customer_support_regression_is_detected():
     assert result.candidate_pass == 0
     assert result.accuracy_delta_pp == -100.0
     assert result.regressions == result.original_pass
+
+
+@pytest.mark.parametrize("name", WORKFLOW_NAMES)
+def test_every_text_suite_loads_and_runs_offline(name):
+    wf = get_workflow(name)
+    assert len(wf.tasks()) >= 10        # every shipped suite has real coverage
+    assert get_benchmark(name).name == name
+    result = run_proof(
+        benchmark_name=name, original_spec="anthropic:claude-opus-4-7",
+        mock=True, mock_candidate_accuracy=1.0,
+    )
+    assert result.benchmark == name
+    assert result.original_pass == result.candidate_pass == result.n_tasks
+    assert result.cost_delta_pct < 0
+    assert result.tokenjam_version
+
+
+@pytest.mark.parametrize("name", AGENTIC_WORKFLOW_NAMES)
+def test_every_agentic_workflow_runs_through_the_agent_pipeline(name):
+    assert is_agentic_workflow(name)
+    suite = get_agentic_workflow(name)
+    assert len(suite.tasks()) >= 3
+    assert get_agent_benchmark(name).name == name
+    result = run_agent_proof(
+        benchmark_name=name, original_spec="anthropic:claude-opus-4-7", mock=True,
+    )
+    assert result.benchmark == name
+    assert result.n_tasks == len(suite.tasks())
+    assert result.cost_delta_pct < 0
+
+
+def test_all_workflow_names_are_routable_and_labelled():
+    assert set(ALL_WORKFLOW_NAMES) == set(WORKFLOW_NAMES) | set(AGENTIC_WORKFLOW_NAMES)
+    for name in ALL_WORKFLOW_NAMES:
+        assert workflow_label(name) and workflow_label(name) != ""

@@ -13,7 +13,7 @@ from tjbench.matrix import build_series, load_artifacts, series_to_dict, total_r
 from tjbench.pipeline import resolve_candidate, run_proof
 from tjbench.report_html import load_and_render, write_html_report
 from tjbench.version import resolve_tokenjam_build
-from tjbench.workflows import WORKFLOW_NAMES
+from tjbench.workflows import ALL_WORKFLOW_NAMES, is_agentic_workflow
 
 console = Console()
 
@@ -181,7 +181,7 @@ def _render_proof(result, path, output_json: bool) -> None:
 
 
 @cli.command("workflow")
-@click.argument("suite", type=click.Choice(WORKFLOW_NAMES))
+@click.argument("suite", type=click.Choice(ALL_WORKFLOW_NAMES))
 @click.option("--original", required=True,
               help="Original model spec, e.g. anthropic:claude-opus-4-7.")
 @click.option("--candidate", default=None,
@@ -208,21 +208,35 @@ def cmd_workflow(suite: str, original: str, candidate: str | None, limit: int | 
 
     A workflow is a dataset-driven, judge-scored benchmark that flows through the
     same proof stats (Wilson CI + McNemar + measured cost) as everything else.
-    The judge backend is selected via TJBENCH_JUDGE (offline MockJudge by default;
-    `TJBENCH_JUDGE=deepseek` for a real DeepEval judge).
+    Text suites (customer-support, enterprise-rag, …) are judge-scored; agentic
+    suites (n8n, coding-workflow) run multi-turn through the AgentRunner. Either
+    way the stats are identical. The judge backend is selected via TJBENCH_JUDGE
+    (offline MockJudge by default; `TJBENCH_JUDGE=deepseek` for a real judge).
     """
     try:
-        result = run_proof(
-            benchmark_name=suite,
-            original_spec=original,
-            candidate_spec=candidate,
-            limit=limit,
-            samples=samples,
-            temperature=temperature,
-            mock=mock,
-            mock_candidate_accuracy=mock_candidate_accuracy,
-            max_tokens=max_tokens,
-        )
+        if is_agentic_workflow(suite):
+            result = run_agent_proof(
+                benchmark_name=suite,
+                original_spec=original,
+                candidate_spec=candidate,
+                limit=limit,
+                samples=samples,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                mock=mock,
+            )
+        else:
+            result = run_proof(
+                benchmark_name=suite,
+                original_spec=original,
+                candidate_spec=candidate,
+                limit=limit,
+                samples=samples,
+                temperature=temperature,
+                mock=mock,
+                mock_candidate_accuracy=mock_candidate_accuracy,
+                max_tokens=max_tokens,
+            )
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
 

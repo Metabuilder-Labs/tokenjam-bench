@@ -30,17 +30,32 @@ DATASETS_DIR = Path(
     or Path(__file__).resolve().parents[2] / "datasets"
 )
 
-# suite name -> (dataset subdir, file, human label, JSON list key)
+# Text (judge-scored) workflow suites. suite -> (subdir, file, label, list key).
 WORKFLOW_SUITES: dict[str, tuple[str, str, str, str]] = {
     "customer-support": ("customer_support", "tickets.json", "Customer Support", "tickets"),
+    "enterprise-rag": ("rag", "qa.json", "Enterprise RAG", "cases"),
+    "email-assistant": ("email", "tasks.json", "Email Assistant", "tasks"),
+    "research-assistant": ("research", "tasks.json", "Research Assistant", "tasks"),
 }
 WORKFLOW_NAMES = list(WORKFLOW_SUITES)
 
-# How each suite frames its task prompt + which dataset fields feed the judge.
+# How each suite frames its task prompt (system instruction before the request).
 _PROMPTS = {
     "customer-support": (
         "You are a customer-support agent. Answer the ticket helpfully and stay "
         "grounded in the provided policy; do not invent policy."
+    ),
+    "enterprise-rag": (
+        "You are an enterprise knowledge assistant. Answer strictly from the "
+        "provided documents, cite them, and say so if the answer isn't present."
+    ),
+    "email-assistant": (
+        "You are an email assistant. Complete the requested task (reply, "
+        "summarize, triage, or extract) accurately and in a professional tone."
+    ),
+    "research-assistant": (
+        "You are a research assistant. Synthesize the provided sources into a "
+        "grounded, well-reasoned answer and do not fabricate citations."
     ),
 }
 
@@ -66,24 +81,21 @@ class WorkflowBenchmark:
         self._tasks = [self._to_task(c) for c in cases]
 
     def _to_task(self, c: dict) -> Task:
-        question = c["question"]
-        expected = c["expected_response"]
+        # Field-flexible so every suite is pure data: input/expected/context have
+        # synonyms; all remaining dataset fields are carried through as metadata
+        # for the report + dashboard (intent, category, citations, sources, …).
+        question = c.get("question") or c.get("input") or c.get("prompt") or ""
+        expected = c.get("expected_response") or c.get("expected") or ""
+        context = c.get("knowledge_context") or c.get("context")
         # echo → offline mock returns the reference, so the suite runs with no keys.
         prompt = (
             f"{self._system}\n\nRequest: {question}\n"
             f"# task_key: {c['id']}\n# echo: {expected}\n"
         )
-        return Task(
-            task_id=c["id"], prompt=prompt, kind="workflow",
-            metadata={
-                "question": question, "expected": expected,
-                "context": c.get("knowledge_context"),
-                "intent": c.get("expected_intent"),
-                "category": c.get("category"),
-                "priority": c.get("priority"),
-                "difficulty": c.get("difficulty"),
-            },
-        )
+        meta = dict(c)
+        meta.update({"question": question, "expected": expected, "context": context,
+                     "intent": c.get("expected_intent")})
+        return Task(task_id=c["id"], prompt=prompt, kind="workflow", metadata=meta)
 
     def tasks(self, limit: int | None = None) -> list[Task]:
         return self._tasks if limit is None else self._tasks[:limit]
@@ -109,11 +121,31 @@ def get_workflow(name: str, judge: Judge | None = None) -> WorkflowBenchmark:
     return WorkflowBenchmark(name, _load_cases(subdir, fname, list_key), judge=judge)
 
 
+# Agentic (multi-turn, AgentRunner-scored) workflow suites. These run through
+# the *agent* proof pipeline rather than the judge seam — same stats either way.
+from tjbench.workflows.agentic import (  # noqa: E402  (after the text defs)
+    AGENTIC_WORKFLOWS,
+    get_agentic_workflow,
+)
+
+AGENTIC_WORKFLOW_NAMES = list(AGENTIC_WORKFLOWS)
+_AGENTIC_LABELS = {"n8n": "n8n Automation", "coding-workflow": "Coding Workflow"}
+# Every workflow suite (text + agentic), for the CLI and dashboard.
+ALL_WORKFLOW_NAMES = WORKFLOW_NAMES + AGENTIC_WORKFLOW_NAMES
+
+
+def is_agentic_workflow(name: str) -> bool:
+    return name in AGENTIC_WORKFLOWS
+
+
 def workflow_label(name: str) -> str:
-    return WORKFLOW_SUITES[name][2] if name in WORKFLOW_SUITES else name
+    if name in WORKFLOW_SUITES:
+        return WORKFLOW_SUITES[name][2]
+    return _AGENTIC_LABELS.get(name, name)
 
 
 __all__ = [
-    "WorkflowBenchmark", "WORKFLOW_SUITES", "WORKFLOW_NAMES",
-    "get_workflow", "workflow_label", "DATASETS_DIR",
+    "WorkflowBenchmark", "WORKFLOW_SUITES", "WORKFLOW_NAMES", "ALL_WORKFLOW_NAMES",
+    "AGENTIC_WORKFLOWS", "AGENTIC_WORKFLOW_NAMES", "get_workflow",
+    "get_agentic_workflow", "is_agentic_workflow", "workflow_label", "DATASETS_DIR",
 ]
