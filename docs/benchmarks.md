@@ -12,7 +12,7 @@ The `benchmarks/` package defines executable benchmarks with objective ground tr
 | `humaneval` | Single-shot | Unit-test pass/fail | `[datasets]` | OpenAI HumanEval code problems |
 | `gsm8k` | Single-shot | Numeric exact match | `[datasets]` | Grade school math problems |
 | `sample-agent` | Agent | Tool validation + answer | Nothing (offline) | 3 tool-use tasks with safety gate |
-| `swe-bench-lite` | Agent | Tool-use + test execution | `[datasets]` | Real GitHub issue bug fixes (300 tasks) |
+| `swe-bench-lite` | Agent | ⚠️ none (experimental) | `[datasets]` | Scaffold only — fix-verification not implemented; scoring disabled |
 
 ## Single-Shot Benchmarks
 
@@ -122,43 +122,27 @@ class AgentTask:
 
 Includes a `delete_records` tool marked as **dangerous** to exercise the safety gate.
 
-### SWE-Bench Lite Benchmark
+### SWE-Bench Lite Benchmark (⚠️ experimental scaffold)
 
 [`benchmarks/swe_bench_lite.py`](../benchmarks/swe_bench_lite.py)
 
-Loads real GitHub issues from the [SWE-Bench Lite dataset](https://github.com/princeton-nlp/SWE-bench) (300 tasks). Each task:
-- Provides a real bug report (problem statement from GitHub)
-- Includes the repository name and affected files
-- The agent must explore, edit, and test to fix the bug
+> **This is an experimental scaffold, not a working benchmark.** Fix-verification
+> is **not implemented**: the code does not check out a repo, apply the agent's
+> edits, or run the task's `FAIL_TO_PASS` / `PASS_TO_PASS` tests. Because of that,
+> `score()` is intentionally disabled (it raises) so **no pass-rate can be
+> produced** — any "swe-bench" number would be meaningless. Do not present output
+> from this module as a SWE-bench result.
 
-**Agent tools provided:**
-- `view` — Read file contents with line numbers
-- `view_range` — Read specific line range
-- `str_replace` — Exact-match string replacement (must match exactly once)
-- `create` — Create new file
-- `insert` — Insert text after a specific line
-- `bash` — Run shell commands (tests, git, etc.)
+What is real and inspectable today (kept for a future implementer):
+- The `SWEBenchTask` dataclass and dataset loader (`tasks()`)
+- Prompt construction from the problem statement and patch
+- A developer tool registry (`view`, `view_range`, `str_replace`, `create`,
+  `insert`, `bash`) and the workspace `SWEBenchToolSet` (tested in isolation)
 
-**Scoring (mock mode):**
-- Checks if agent used `view`, `str_replace`, and `bash` tools
-- Full implementation would run FAIL_TO_PASS and PASS_TO_PASS tests
-
-**Scoring (live mode):**
-- Would clone the repository at the base commit
-- Apply the agent's edits
-- Run FAIL_TO_PASS tests (must pass = bug fixed)
-- Run PASS_TO_PASS tests (must pass = no regressions)
-
-Requires: `pip install -e ".[datasets]"`
-
-**Usage:**
-```bash
-# Offline mock mode (no keys needed)
-tjbench agent --benchmark swe-bench-lite --original anthropic:claude-opus-4-7 --mock --limit 5
-
-# Live mode (requires API key + dataset)
-tjbench agent --benchmark swe-bench-lite --original anthropic:claude-opus-4-7 --limit 10
-```
+**What real scoring would require (NOT done here):**
+- Clone the repository at the base commit and apply the agent's edits
+- Run `FAIL_TO_PASS` tests (must pass = bug fixed)
+- Run `PASS_TO_PASS` tests (must pass = no regressions)
 
 See [SWE-Bench Tools](agents.md#swe-bench-tools) for the tool implementations.
 

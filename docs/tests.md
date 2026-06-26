@@ -23,8 +23,8 @@ The `tests/` directory contains **55 tests** covering all aspects of tokenjam-be
 | `test_stats.py` | 9 | Statistical correctness |
 | `test_report.py` | 3 | Cost-validation and headline logic |
 | `test_version_stamp.py` | 1 | TokenJam version resolution |
-| `test_swe_bench_lite.py` | 20 | SWE-Bench Lite mock scoring and tools |
-| **Total** | **55** | |
+| `test_swe_bench_lite.py` | 19 | swe-bench scaffold: scoring-disabled gate + tools/parsing |
+| **Total** | **54** | |
 
 ## Pipeline Tests
 
@@ -123,18 +123,20 @@ Cost-validation and headline logic.
 
 ### `test_swe_bench_lite.py`
 
-SWE-Bench Lite mock scoring and tool operations.
+The swe-bench-lite scaffold's scoring gate plus its inspectable parts (tool
+registry, patch/prompt parsing) and the workspace toolset.
 
-#### Mock Scoring Tests (4)
+#### Scoring-Disabled Gate Tests (3)
+
+`swe-bench-lite` cannot produce a pass-rate; these pin that scoring is disabled.
 
 | Test | What It Verifies |
 |------|-----------------|
-| `test_mock_scoring_with_all_tools` | Agent using view + str_replace + bash passes |
-| `test_mock_scoring_missing_view` | Agent missing view fails |
-| `test_mock_scoring_missing_edit` | Agent missing edit fails |
-| `test_mock_scoring_missing_bash` | Agent missing bash fails |
+| `test_score_raises_even_when_all_tools_used` | "made an edit + ran bash" does **not** score a pass — `score()` raises |
+| `test_score_raises_in_mock_mode_too` | the mock constructor does not re-open a scoring path |
+| `test_experimental_notice_is_explicit` | the label spells out it is not a real result |
 
-#### Benchmark Tests (3)
+#### Inspectable-Parts Tests (3)
 
 | Test | What It Verifies |
 |------|-----------------|

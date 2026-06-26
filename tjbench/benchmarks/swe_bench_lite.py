@@ -1,28 +1,26 @@
-"""SWE-Bench Lite agent benchmark.
+"""SWE-Bench Lite — EXPERIMENTAL SCAFFOLD (fix-verification NOT implemented).
 
-This benchmark loads real GitHub issues from the SWE-Bench Lite dataset
-and evaluates an agent's ability to fix bugs by:
+⚠️  This is an *experimental scaffold*, not a working SWE-bench benchmark. It
+does NOT verify bug fixes and CANNOT produce a SWE-bench pass-rate. Do not
+present any number derived from this module as a SWE-bench result.
 
-1. Reading the problem statement
-2. Exploring the repository (read files, list directory)
-3. Editing files to fix the bug
-4. Running tests to verify the fix
+What real SWE-bench scoring requires — and what this scaffold does NOT do:
 
-The agent is given a set of tools that mirror a developer's workflow:
-- view: Read file contents
-- view_range: Read specific line range of a file
-- create: Create a new file
-- str_replace: Replace a string in a file (exact match)
-- insert: Insert text after a specific line
-- bash: Run a shell command (for tests, git, etc.)
+- Check out the repository at the base commit, apply the agent's edits, and run
+  the task's ``FAIL_TO_PASS`` tests (must pass = bug fixed) and ``PASS_TO_PASS``
+  tests (must still pass = no regression).
 
-Scoring is based on:
-- FAIL_TO_PASS tests must pass (the bug is fixed)
-- PASS_TO_PASS tests must still pass (no regressions)
+None of that is wired up. The only thing the previous implementation checked was
+*tool usage* — i.e. "the agent made an edit and ran bash" — which says nothing
+about whether the bug was actually fixed. Because that check could be mistaken
+for a real pass-rate, scoring is now intentionally disabled: ``score()`` raises
+``NotImplementedError`` (see ``EXPERIMENTAL_NOTICE``).
 
-This is a "Lite" implementation that works within the tokenjam-bench
-framework without requiring Docker containers. It uses the problem
-statement and test patches directly rather than cloning full repos.
+The pieces that ARE real and inspectable are kept so a future implementer can
+build on them: the dataset-task dataclass, the developer tool registry
+(``tools()``), prompt construction, and patch parsing. The actual workspace
+tooling lives in ``tjbench.agents.swe_bench_tools.SWEBenchToolSet`` and is also
+an unwired scaffold today.
 """
 
 from __future__ import annotations
@@ -37,6 +35,18 @@ from tjbench.benchmarks.agent_base import AgentBenchmark, AgentTask
 from tjbench.benchmarks.base import ScoreResult
 from tjbench.agents.tools import Tool, ToolRegistry
 from tjbench.agents.trace import AgentTrace
+
+# The single source of truth for "this benchmark cannot produce a real result".
+# Raised by score() so no ScoreResult — and therefore no pass-rate — is ever
+# emitted from this scaffold.
+EXPERIMENTAL_NOTICE = (
+    "swe-bench-lite is an EXPERIMENTAL SCAFFOLD: fix-verification "
+    "(FAIL_TO_PASS / PASS_TO_PASS test execution) is NOT implemented, so it "
+    "cannot produce a SWE-bench pass-rate. The earlier behaviour only checked "
+    "tool usage (an edit was made + bash was run), which must never be read as a "
+    "real result. Scoring is intentionally disabled until real test-based "
+    "verification is wired in."
+)
 
 
 @dataclass
@@ -61,19 +71,13 @@ class SWEBenchState:
 
 
 class SWEBenchLiteBenchmark(AgentBenchmark):
-    """SWE-Bench Lite benchmark for agent evaluation.
-    
-    Loads tasks from the SWE-Bench Lite dataset. Each task is a real
-    GitHub issue with a bug fix. The agent must:
-    
-    1. Read the problem statement
-    2. Explore relevant files
-    3. Make edits to fix the bug
-    4. Run tests to verify
-    
-    Since we don't have the full repo checked out, this implementation
-    creates a minimal workspace with the files mentioned in the problem
-    and test patches. The agent works with these files directly.
+    """SWE-Bench Lite — EXPERIMENTAL SCAFFOLD; fix-verification NOT implemented.
+
+    This class can build prompts and expose developer tools, but it does NOT
+    verify bug fixes: ``score()`` raises ``NotImplementedError`` so no pass-rate
+    can be produced. See the module docstring and ``EXPERIMENTAL_NOTICE`` for
+    why, and what real scoring would need (repo checkout + FAIL_TO_PASS /
+    PASS_TO_PASS test execution).
     """
 
     def __init__(self, limit: int | None = None, mock: bool = False) -> None:
@@ -270,80 +274,15 @@ Start by reading the problem statement and exploring the codebase.
         return all_tasks
 
     def score(self, task: SWEBenchTask, trace: AgentTrace) -> ScoreResult:
-        """Score a SWE-Bench task based on test results.
-        
-        In a full implementation, this would:
-        1. Apply the agent's edits to the actual repo
-        2. Run FAIL_TO_PASS tests (must pass)
-        3. Run PASS_TO_PASS tests (must still pass)
-        
-        In this Lite implementation, we check:
-        - Did the agent make any edits? (str_replace or create called)
-        - Did the agent run tests? (bash called with test command)
-        - Did the agent produce a reasonable trace?
-        
-        For mock mode, we use deterministic scoring based on task_id.
-        """
-        if self._mock:
-            return self._score_mock(task, trace)
-        
-        # Real scoring: check if agent made edits and attempted tests
-        tool_calls = []
-        for turn in trace.turns:
-            for tc in turn.tool_calls:
-                tool_calls.append(tc.name)
-        
-        has_edit = any(t in tool_calls for t in ["str_replace", "create", "insert"])
-        has_test = any(t == "bash" for t in tool_calls)
-        
-        if not has_edit:
-            return ScoreResult(
-                passed=False,
-                detail="No file edits were made. The agent must modify code to fix the bug.",
-            )
-        
-        if not has_test:
-            return ScoreResult(
-                passed=False,
-                detail="No tests were run. The agent must verify the fix with tests.",
-            )
-        
-        # In a full implementation, we'd run actual tests here
-        # For now, we accept the attempt as a partial success
-        return ScoreResult(
-            passed=True,
-            detail=f"Made edits and ran tests. Tools used: {tool_calls}. "
-                   "(Full test verification requires repo checkout)",
-        )
+        """Disabled: this scaffold cannot verify a fix, so it is not scored.
 
-    def _score_mock(self, task: SWEBenchTask, trace: AgentTrace) -> ScoreResult:
-        """Deterministic mock scoring for testing."""
-        # Check if agent made the expected tool calls
-        tool_calls = []
-        for turn in trace.turns:
-            for tc in turn.tool_calls:
-                tool_calls.append(tc.name)
-        
-        has_view = "view" in tool_calls
-        has_edit = any(t in tool_calls for t in ["str_replace", "create", "insert"])
-        has_bash = "bash" in tool_calls
-        
-        # Mock: 80% of tasks "pass" if all expected tools are used
-        if has_view and has_edit and has_bash:
-            return ScoreResult(
-                passed=True,
-                detail="Mock: All expected tools used (view, edit, test).",
-            )
-        
-        missing = []
-        if not has_view:
-            missing.append("view")
-        if not has_edit:
-            missing.append("edit")
-        if not has_bash:
-            missing.append("bash")
-        
-        return ScoreResult(
-            passed=False,
-            detail=f"Mock: Missing expected tools: {missing}. Tools used: {tool_calls}",
-        )
+        Real SWE-bench scoring would apply the agent's edits to a checked-out
+        repo and run the task's FAIL_TO_PASS / PASS_TO_PASS tests. None of that
+        is implemented. The earlier code passed a task whenever the agent merely
+        "made an edit and ran bash" — a tool-usage check that says nothing about
+        whether the bug was fixed and could be mistaken for a real pass-rate.
+
+        To make it impossible to read a fake SWE-bench pass-rate, scoring raises
+        instead of returning a ``ScoreResult``.
+        """
+        raise NotImplementedError(EXPERIMENTAL_NOTICE)

@@ -1,6 +1,6 @@
 # Replay validation (P0)
 
-Benchmarks (HumanEval, SWE-Bench Lite, …) measure a model's *capability* against
+Benchmarks (HumanEval, GSM8K, …) measure a model's *capability* against
 objective ground truth. **Replay measures something narrower and more honest:
 agreement with your own history.** It re-runs your actual historical prompts on
 the cheaper candidate and checks whether the answers agree with what the original
