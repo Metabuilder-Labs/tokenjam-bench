@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -25,9 +26,62 @@ _VERDICT = {
     "insufficient_evidence":     ("#8b949e", "Insufficient evidence"),
 }
 
+# Verdict -> (plain-English headline, what-to-do sentence).
+_PLAIN_VERDICT = {
+    "no_significant_regression": (
+        "Switching looks safe",
+        "No statistically significant quality drop was detected, so moving to the "
+        "cheaper model is a reasonable way to cut cost."),
+    "regression_suspected": (
+        "Review before switching",
+        "There are signs of a quality drop — look at the failed tasks below before "
+        "you decide."),
+    "significant_regression": (
+        "Don't switch",
+        "The cheaper model was measurably worse on this suite — keep the original."),
+    "insufficient_evidence": (
+        "Not enough evidence yet",
+        "Too few tasks were run to be statistically sure either way. Run more before "
+        "deciding."),
+}
+
+_DETAIL_RE = re.compile(r"score=([\d.]+)\s*\(>=\s*([\d.]+)\)\s*[—–-]+\s*(.*)", re.S)
+
 
 def _esc(x: Any) -> str:
     return html.escape(str(x))
+
+
+def _short_model(spec: str) -> str:
+    """`deepseek:deepseek-reasoner` -> `deepseek-reasoner` (drop the provider prefix)."""
+    return str(spec).split(":", 1)[-1] if spec else "?"
+
+
+def _humanize_task(task_id: str) -> str:
+    """`research/synthesize-trend` -> `Synthesize trend`."""
+    base = str(task_id).split("/")[-1].replace("-", " ").replace("_", " ").strip()
+    return base[:1].upper() + base[1:] if base else str(task_id)
+
+
+def _truncate(text: str, n: int = 150) -> str:
+    text = " ".join(str(text).split())
+    if len(text) <= n:
+        return text
+    return text[:n].rsplit(" ", 1)[0].rstrip(".,;:") + "…"
+
+
+def _parse_detail(detail: str | None) -> tuple[float, float, str] | None:
+    """Pull (score, threshold, plain reason) out of a judge detail string.
+
+    `deepeval:correctness@... score=0.30 (>= 0.5) — The output described the trend`
+    -> (0.30, 0.5, "The output described the trend").
+    """
+    if not detail:
+        return None
+    m = _DETAIL_RE.search(detail)
+    if not m:
+        return None
+    return float(m.group(1)), float(m.group(2)), m.group(3).strip()
 
 
 def _bar(label: str, value: float, vmax: float, text: str, colour: str,
@@ -84,17 +138,69 @@ def render_html_from_dict(d: dict) -> str:
         + _bar("Candidate", c_cost, cost_max, f"${c_cost:.6f}", "#79c0ff")
     )
 
-    # Per-task rows.
+    # Per-task rows — humanized: pass/fail + the judge's reason in plain words.
     rows = []
     for t in d.get("tasks", []):
         op, cp, sm = t.get("original_passes", 0), t.get("candidate_passes", 0), t.get("samples", 1)
-        regressed = (op * 2 >= sm) and not (cp * 2 >= sm)
-        flag = '<span class="reg">regressed</span>' if regressed else ""
+        o_pass, c_pass = op * 2 >= sm, cp * 2 >= sm
+        om = "<span class=pass>pass</span>" if o_pass else "<span class=fail>fail</span>"
+        cm = "<span class=pass>pass</span>" if c_pass else "<span class=fail>fail</span>"
+        parsed = _parse_detail(t.get("candidate_detail") or t.get("original_detail"))
+        if parsed:
+            score, thr, reason = parsed
+            why = (f"{_esc(_truncate(reason))} "
+                   f"<span class=score>graded {score:.2f} (needs {thr:.2f})</span>")
+        else:
+            why = _esc(_truncate(t.get("candidate_detail") or "—"))
         rows.append(
-            f"<tr><td class=mono>{_esc(t.get('task_id',''))}</td>"
-            f"<td>{op}/{sm}</td><td>{cp}/{sm}</td><td>{flag}</td>"
-            f"<td class=mono>{_esc((t.get('candidate_detail') or '')[:90])}</td></tr>"
+            f"<tr><td>{_esc(_humanize_task(t.get('task_id','')))}</td>"
+            f"<td>{om}</td><td>{cm}</td><td>{why}</td></tr>"
         )
+
+    # Plain-English summary — the part a non-statistician actually reads.
+    short_o = _short_model(d.get("original_model", ""))
+    short_c = _short_model(d.get("candidate_model", ""))
+    cost_delta_pct = d.get("cost_delta_pct", 0.0) or 0.0
+    acc_delta = c_rate - o_rate
+    if cost_delta_pct < 0:
+        cost_part = f"cost <b>{abs(cost_delta_pct):.0f}% less</b>"
+    elif cost_delta_pct > 0:
+        cost_part = f"cost <b>{cost_delta_pct:.0f}% more</b>"
+    else:
+        cost_part = "cost about the same"
+    if abs(acc_delta) < 1:
+        acc_part = "and scored about the same"
+    elif acc_delta > 0:
+        acc_part = f"and scored <b>{acc_delta:.0f} points higher</b>"
+    else:
+        acc_part = f"but scored <b>{abs(acc_delta):.0f} points lower</b>"
+    did = (f"We ran the same <b>{n}</b> {_esc(d.get('benchmark','?'))} task(s) through both "
+           "models and graded every answer with the same automated judge.")
+    finding = (f"The cheaper candidate (<b>{_esc(short_c)}</b>) {cost_part} than "
+               f"<b>{_esc(short_o)}</b>, {acc_part} on this suite &mdash; "
+               f"{o_rate:.0f}% of tasks passed before, {c_rate:.0f}% after.")
+    headline, expl = _PLAIN_VERDICT.get(verdict, ("Result", v_label))
+    if verdict == "no_significant_regression" and max(o_rate, c_rate) < 50:
+        expl += (" Note: both models scored low on this hard suite, so spot-check the "
+                 "answers before relying on either.")
+    plain_block = (
+        f'<div class="plain" style="border-left:4px solid {v_colour}">'
+        f'<div class="plain-h" style="color:{v_colour}">{_esc(headline)}</div>'
+        f'<p class="plain-p">{did} {finding}</p>'
+        f'<p class="plain-p">{expl}</p></div>'
+    )
+
+    # Human-labelled KPIs (the headline numbers, in words).
+    mc_b, mc_c = s.get("mcnemar_b", 0), s.get("mcnemar_c", 0)
+    cheaper_word = "cheaper" if cost_delta_pct <= 0 else "more expensive"
+    kpis = (
+        f'<div class=kpi><div class=v>{cost_delta_pct:+.0f}%</div>'
+        f'<div class=l>{cheaper_word} to run (measured API&nbsp;$)</div></div>'
+        f'<div class=kpi><div class=v>{acc_delta:+.0f} pts</div>'
+        f'<div class=l>accuracy vs the original model</div></div>'
+        f'<div class=kpi><div class=v>{mc_b} worse &middot; {mc_c} better</div>'
+        f'<div class=l>tasks changed by the swap (of {n})</div></div>'
+    )
 
     notes = [
         "Accuracy is the pass-rate on THIS benchmark suite, not a general "
@@ -128,11 +234,11 @@ def render_html_from_dict(d: dict) -> str:
         candidate=_esc(d.get("candidate_model", "?")),
         recommended_by=_esc(d.get("recommended_by", "")),
         v_colour=v_colour, v_label=_esc(v_label),
-        cost_delta=f"{d.get('cost_delta_pct',0.0):+.1f}",
+        plain_block=plain_block, kpis=kpis,
         acc_delta=f"{d.get('accuracy_delta_pp',0.0):+.1f}",
         d_lo=f"{d_ci[0]:+.1f}", d_hi=f"{d_ci[1]:+.1f}",
         mcnemar_p=f"{s.get('mcnemar_p_value',1.0):.3f}",
-        mc_b=s.get("mcnemar_b", 0), mc_c=s.get("mcnemar_c", 0), alpha=s.get("alpha", 0.05),
+        alpha=s.get("alpha", 0.05),
         pass_bars=pass_bars, cost_bars=cost_bars,
         rows="".join(rows) or '<tr><td colspan=5 class=mono>no tasks</td></tr>',
         notes="".join(f"<li>{x}</li>" for x in notes),
@@ -165,25 +271,37 @@ th{{color:var(--mut);font-weight:600}}
 .mono{{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}}
 .reg{{color:#f85149;font-weight:600}}
 ul.notes{{color:var(--mut);font-size:12.5px;padding-left:18px}} ul.notes li{{margin:4px 0}}
+h3{{font-size:13px;color:var(--mut);font-weight:600;margin:18px 0 8px;text-transform:uppercase;letter-spacing:.04em}}
+.plain{{background:var(--panel);border-radius:6px;padding:16px 18px;margin:0 0 18px}}
+.plain-h{{font-size:17px;font-weight:700;margin:0 0 6px}}
+.plain-p{{margin:6px 0;color:var(--fg)}}
+.pass{{color:#2ea043;font-weight:600}} .fail{{color:#f85149;font-weight:600}}
+.score{{color:var(--mut);font-size:11.5px;white-space:nowrap}}
+.stathelp{{color:var(--mut);font-size:12.5px;margin:0 0 14px}}
 .foot{{color:var(--mut);font-size:12px;margin-top:24px;border-top:1px solid var(--line);padding-top:12px}}
 </style></head><body><div class=wrap>
 <h1>TokenJam proof &mdash; {benchmark}</h1>
 <p class=sub><span class=badge>tokenjam {tj}</span> &nbsp; n={n} tasks &middot; k={k} sample(s) &middot;
 {original} &rarr; {candidate}</p>
+{plain_block}
+<div class=kpis>{kpis}</div>
+<h2>How each task did</h2><div class=panel><table>
+<tr><th>Task</th><th>Original</th><th>Cheaper&nbsp;model</th><th>Why &mdash; the judge&rsquo;s reason</th></tr>
+{rows}</table></div>
+<h2>The statistics behind it</h2>
 <div class=verdict>Verdict: <b>{v_label}</b> &nbsp;&middot;&nbsp; McNemar p={mcnemar_p} (&alpha;={alpha})
 &nbsp;&middot;&nbsp; candidate chosen by {recommended_by}</div>
+<p class=stathelp>McNemar&rsquo;s test asks whether the difference between the two models is bigger
+than chance: a p-value above {alpha} means the change is <b>not statistically significant</b>.
+The 95%&nbsp;CI on the pass-rate delta is the range the true difference is likely in &mdash; if it
+crosses zero, the direction isn&rsquo;t certain.</p>
 <div class=kpis>
-<div class=kpi><div class=v>{cost_delta}%</div><div class=l>cost delta (measured)</div></div>
 <div class=kpi><div class=v>{acc_delta}pp</div><div class=l>pass-rate delta [95% CI {d_lo}, {d_hi}]</div></div>
-<div class=kpi><div class=v>{mc_b} / {mc_c}</div><div class=l>tasks broken / fixed by the swap</div></div>
 </div>
-<h2>Pass rate (95% CI whiskers)</h2><div class=panel>{pass_bars}</div>
-<h2>Cost (measured)</h2><div class=panel>{cost_bars}</div>
-<h2>Per-task</h2><div class=panel><table>
-<tr><th>task</th><th>orig</th><th>cand</th><th></th><th>candidate detail</th></tr>
-{rows}</table></div>
+<h3>Pass rate (95% CI whiskers)</h3><div class=panel>{pass_bars}</div>
+<h3>Cost (measured)</h3><div class=panel>{cost_bars}</div>
 <h2>How to read this</h2><ul class=notes>{notes}</ul>
-<div class=foot>Generated {generated} &middot; tokenjam-bench &middot; executable-accuracy proof</div>
+<div class=foot>Generated {generated} &middot; tokenjam-bench &middot; proof report</div>
 </div></body></html>"""
 
 
