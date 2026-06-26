@@ -498,6 +498,10 @@ button.lnk.danger:hover{background:color-mix(in srgb,var(--bad) 12%,transparent)
 .mtile .mt-l{font-size:11.5px;color:var(--mut);margin-top:3px}
 .mtile .mt-bar{height:6px;border-radius:6px;background:var(--chip);margin-top:10px;overflow:hidden}
 .mtile .mt-bar > i{display:block;height:100%;border-radius:6px;background:var(--acc)}
+.mt-bar{height:6px;border-radius:6px;background:var(--chip);overflow:hidden}
+.mt-bar > i{display:block;height:100%;border-radius:6px;background:var(--acc)}
+.medal{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1.5px solid;font-weight:700;font-size:12px}
+.rankn{display:inline-grid;place-items:center;width:24px;height:24px;color:var(--mut);font-size:12px}
 /* diff viewer */
 .diff{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-bottom:10px;background:var(--panel)}
 .diff-q{padding:10px 14px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--fg);display:flex;justify-content:space-between;gap:10px;align-items:center}
@@ -686,6 +690,23 @@ function hbars(items,opts){ // items:[{label,value,color?}]
  return `<div class=hbars>`+items.map(it=>`<div class=hbar><div class=hbar-l title="${esc(it.label)}">${esc(it.label)}</div>
    <div class=hbar-track><i style="width:${((it.value||0)/mx*100).toFixed(1)}%;background:${it.color||'var(--acc)'}"></i></div>
    <div class=hbar-v>${esc(opts.fmt?opts.fmt(it.value):it.value)}</div></div>`).join("")+`</div>`;}
+function medal(rank){if(rank>3)return `<span class=rankn>${rank}</span>`;
+ const c=["#d8b450","#9aa7b3","#c08552"][rank-1];
+ return `<span class=medal style="color:${c};border-color:color-mix(in srgb,${c} 50%,transparent);background:color-mix(in srgb,${c} 15%,transparent)">${rank}</span>`;}
+const PROVLBL={anthropic:"Anthropic",openai:"OpenAI",deepseek:"DeepSeek",google:"Gemini",gemini:"Gemini",groq:"Groq",openrouter:"OpenRouter"};
+function provLabel(p){return PROVLBL[p]||p;}
+function radarMulti(labels,series){ // overlay radar: series=[{name,color,values 0..1}]
+ const n=labels.length;if(n<3)return'';
+ const W=420,H=360,cx=W/2,cy=H/2,R=118;
+ const ang=i=>-Math.PI/2+i*2*Math.PI/n;
+ const pt=(i,r)=>[cx+Math.cos(ang(i))*R*r,cy+Math.sin(ang(i))*R*r];
+ let rings="",axes="",labs="";
+ [.25,.5,.75,1].forEach(rr=>{const p=labels.map((_,i)=>pt(i,rr).map(v=>v.toFixed(1)).join(",")).join(" ");rings+=`<polygon points="${p}" style="fill:none;stroke:var(--line)" stroke-width="1" />`;});
+ labels.forEach((lb,i)=>{const[ex,ey]=pt(i,1);axes+=`<line x1="${cx}" y1="${cy}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" style="stroke:var(--line)" stroke-width="1" />`;
+  const[lx,ly]=pt(i,1.13);labs+=`<text x="${lx.toFixed(1)}" y="${(ly+3).toFixed(1)}" style="fill:var(--mut)" font-size="10.5" text-anchor="middle">${esc(lb)}</text>`;});
+ let polys="";series.forEach(s=>{const pp=s.values.map((v,i)=>pt(i,Math.max(0,Math.min(1,v||0))).map(x=>x.toFixed(1)).join(",")).join(" ");
+  polys+=`<polygon points="${pp}" style="fill:${s.color};opacity:.10" /><polygon points="${pp}" style="fill:none;stroke:${s.color}" stroke-width="2" />`;});
+ return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:460px;height:360px">${rings}${axes}${polys}${labs}</svg>`;}
 // ---- reusable table (search + click-sort) ----------------------------------
 const _TBL={};
 function table(elId,cols,rows,opts){_TBL[elId]={cols,rows,opts:opts||{},q:"",sk:(opts&&opts.sortKey)||null,dir:(opts&&opts.dir)||-1};drawTable(elId);}
@@ -1047,52 +1068,101 @@ async function pgTrends(){
 }
 let selLB=null;
 async function pgLeaderboards(){
- const cfg=await getJSON("/api/configs");const benches=[...new Set(((cfg&&cfg.rows)||[]).map(r=>r.benchmark))];
- if(!benches.length){M().innerHTML='<div class=empty>No history yet.</div>';return;}
- if(!selLB||!benches.includes(selLB))selLB=benches[0];
- const lb=await getJSON("/api/leaderboard?benchmark="+encodeURIComponent(selLB));
- const rows=((lb&&lb.rows)||[]).map((r,i)=>({...r,rank:i+1}));
- const sel=`<select id=lbSel>`+benches.map(b=>`<option ${b===selLB?"selected":""}>${esc(b)}</option>`).join("")+`</select>`;
- M().innerHTML=`<p class=lead>Top-performing models by latest pass-rate on a benchmark. Cost is the measured per-run figure from TokenJam's own pricing table.</p>
-  <div class=tblbar><span class=muted style="font-size:12px">Benchmark</span> ${sel}</div><div id=lbtbl></div>`;
- document.getElementById("lbSel").onchange=e=>{selLB=e.target.value;pgLeaderboards();};
+ const runs=await loadRuns();
+ if(!runs.length){M().innerHTML='<div class=empty>No runs yet.</div>';return;}
+ const CODING=["humaneval","mbpp","swe-bench-lite"];
+ const C={};
+ runs.forEach(r=>{const m=r.candidate_model;const o=C[m]=C[m]||{model:m,n:0,acc:[],save:[],replay:[],judge:[],scen:[],coding:[],reason:[],safeN:0,safe:0,list:[]};
+  o.n++;o.list.push(r);o.acc.push(r.candidate_pass_rate);o.save.push(-r.cost_delta_pct);
+  if(r.benchmark==="replay")o.replay.push(r.candidate_pass_rate);
+  if(r.benchmark==="judged")o.judge.push(r.candidate_pass_rate);
+  if(SCEN.has(r.benchmark)){o.scen.push(r.candidate_pass_rate);o.safeN++;if(r.safety_gate==="enforced")o.safe++;}
+  if(CODING.includes(r.benchmark))o.coding.push(r.candidate_pass_rate);
+  if(r.benchmark==="gsm8k")o.reason.push(r.candidate_pass_rate);
+  if(r.judge&&r.judge.reasoning_quality!=null)o.reason.push(r.judge.reasoning_quality*100);});
+ let rows=Object.values(C).map(o=>{
+  const acc=avg(o.acc),noReg=o.list.some(r=>BAD.has(r.verdict))?0:1,cov=Math.min(1,o.n/8);
+  return {model:o.model,provider:provOf(o.model),acc,save:avg(o.save),replay:avg(o.replay),judge:avg(o.judge),
+   scen:avg(o.scen),coding:avg(o.coding),reason:avg(o.reason),safety:o.safeN?o.safe/o.safeN*100:null,
+   trust:Math.round((acc||0)*0.7+noReg*100*0.2+cov*100*0.1),rec:recommendation(o.list),n:o.n};
+ }).sort((a,b)=>b.trust-a.trust);
+ rows.forEach((r,i)=>r.rank=i+1);
+ const recTop=rows.find(r=>r.rec.state==="CLEARED");
+ const pcell=v=>v==null?'<span class=muted>—</span>':Math.round(v)+"%";
+ const recCls=c=>c==="good"?"b-good":c==="bad"?"b-bad":c==="warn"?"b-warn":"b-mut";
+ M().innerHTML=`<p class=lead>Models ranked by a composite <b>Trust Score</b> across every benchmark family. The recommended candidate is the highest-trust configuration that <b>cleared</b> its regression test.</p>
+  <div id=lbtbl></div>
+  <div class=muted style="font-size:11.5px;margin-top:10px">Trust Score is a heuristic composite (0.7·accuracy + 0.2·no-regression + 0.1·evidence coverage) — a ranking aid, not a probability. Per-dimension cells are mean candidate pass-rates; "—" means that family wasn't run for that model.</div>`;
  table("lbtbl",[
-  {key:"rank",label:"#",html:r=>`<b>#${r.rank}</b>`},
-  {key:"model",label:"Model",html:r=>`<span class=mono>${esc(modelOf(r.model))}</span>`},
-  {key:"provider",label:"Provider",get:r=>provOf(r.model),html:r=>`<span class="badge b-mut">${esc(provOf(r.model))}</span>`},
-  {key:"pass_rate",label:"Pass Rate",sort:r=>r.pass_rate,html:r=>`<b>${pct((r.pass_rate||0)*100)}</b>`},
-  {key:"cost_usd",label:"Cost",sort:r=>r.cost_usd==null?Infinity:r.cost_usd,html:r=>r.cost_usd==null?"—":money(r.cost_usd)},
-  {key:"tokenjam_version",label:"TokenJam",html:r=>`<span class=mono>${esc(r.tokenjam_version)}</span>`},
- ],rows,{});
+  {key:"rank",label:"#",sort:r=>r.rank,html:r=>medal(r.rank)},
+  {key:"model",label:"Model",html:r=>`<span class=mono>${esc(modelOf(r.model))}</span>${r===recTop?' <span class="badge b-good">recommended</span>':''}`},
+  {key:"provider",label:"Provider",get:r=>r.provider,html:r=>`<span class="badge b-mut">${esc(provLabel(r.provider))}</span>`},
+  {key:"trust",label:"Trust",sort:r=>r.trust,html:r=>`<div style="display:flex;align-items:center;gap:8px"><b style="width:26px">${r.trust}</b><div class=mt-bar style="width:54px"><i style="width:${r.trust}%"></i></div></div>`},
+  {key:"acc",label:"Accuracy",sort:r=>r.acc,html:r=>pcell(r.acc)},
+  {key:"save",label:"Savings",sort:r=>r.save,html:r=>r.save==null?"—":`<span class=up>−${Math.round(r.save)}%</span>`},
+  {key:"coding",label:"Coding",sort:r=>r.coding,html:r=>pcell(r.coding)},
+  {key:"reason",label:"Reasoning",sort:r=>r.reason,html:r=>pcell(r.reason)},
+  {key:"replay",label:"Replay",sort:r=>r.replay,html:r=>pcell(r.replay)},
+  {key:"judge",label:"Judge",sort:r=>r.judge,html:r=>pcell(r.judge)},
+  {key:"scen",label:"Scenarios",sort:r=>r.scen,html:r=>pcell(r.scen)},
+  {key:"safety",label:"Safety",sort:r=>r.safety,html:r=>r.safety==null?'<span class=muted>—</span>':`<span class="badge b-good">${Math.round(r.safety)}%</span>`},
+  {key:"rec",label:"Recommendation",get:r=>r.rec.state,html:r=>`<span class="badge ${recCls(r.rec.cls)}">${esc(r.rec.state)}</span>`},
+  {key:"n",label:"Runs",sort:r=>r.n},
+ ],rows,{sortKey:"trust",dir:-1});
 }
 async function pgProviders(){
- const p=await getJSON("/api/providers");const rowsRaw=(p&&p.rows)||[];
- const groups={};rowsRaw.forEach(r=>{const pr=provOf(r.model);const g=groups[pr]=groups[pr]||{models:0,runs:0,acc:[],cost:[]};
-  g.models++;g.runs+=r.runs||0;if(r.avg_accuracy!=null)g.acc.push(r.avg_accuracy);if(r.avg_cost_usd!=null)g.cost.push(r.avg_cost_usd);});
- const KNOWN=[["anthropic","Anthropic"],["openai","OpenAI"],["deepseek","DeepSeek"],["google","Gemini"],["gemini","Gemini"],["groq","Groq"],["openrouter","OpenRouter"]];
- const seen=new Set();let cards="";
- KNOWN.forEach(([k,label])=>{if(seen.has(label))return;seen.add(label);
-  const g=groups[k]||(k==="google"&&groups["gemini"])||(k==="gemini"&&groups["google"]);
-  const has=g&&g.models;
-  cards+=`<div class="card hov"><div style="display:flex;justify-content:space-between;align-items:center">
-    <div style="font-weight:650;font-size:15px;white-space:nowrap">${esc(label)}</div>${has?'<span class="badge b-good">tested</span>':'<span class="badge b-mut">not tested</span>'}</div>
-   <div class="grid g2" style="gap:10px;margin-top:14px">
-    <div><div style="color:var(--mut);font-size:11px">MODELS</div><div style="font-size:18px;font-weight:700">${has?g.models:"—"}</div></div>
-    <div><div style="color:var(--mut);font-size:11px">RUNS</div><div style="font-size:18px;font-weight:700">${has?g.runs:"—"}</div></div>
-    <div><div style="color:var(--mut);font-size:11px">AVG ACCURACY</div><div style="font-size:16px;font-weight:700">${has?pct(avg(g.acc)*100):"—"}</div></div>
-    <div><div style="color:var(--mut);font-size:11px">AVG COST</div><div style="font-size:15px;font-weight:700">${has?money(avg(g.cost)):"—"}</div></div>
-   </div></div>`;});
- M().innerHTML=`<p class=lead>Provider-agnostic by design — the same proof pipeline runs across every OpenAI-compatible and native provider. Cards show what's been benchmarked so far.</p>
-  <div class="grid auto">${cards}</div>
+ const runs=await loadRuns();
+ const CODING=["humaneval","mbpp","swe-bench-lite"];
+ const P={},M2={};
+ runs.forEach(r=>{const pr=provOf(r.candidate_model);const o=P[pr]=P[pr]||{prov:pr,models:new Set(),n:0,acc:[],save:[],coding:[],reason:[],replay:[],judge:[],scen:[],safeN:0,safe:0};
+  o.models.add(r.candidate_model);o.n++;o.acc.push(r.candidate_pass_rate);o.save.push(-r.cost_delta_pct);
+  if(CODING.includes(r.benchmark))o.coding.push(r.candidate_pass_rate);
+  if(r.benchmark==="gsm8k")o.reason.push(r.candidate_pass_rate);
+  if(r.benchmark==="replay")o.replay.push(r.candidate_pass_rate);
+  if(r.benchmark==="judged")o.judge.push(r.candidate_pass_rate);
+  if(SCEN.has(r.benchmark)){o.scen.push(r.candidate_pass_rate);o.safeN++;if(r.safety_gate==="enforced")o.safe++;}
+  const m=r.candidate_model;const mo=M2[m]=M2[m]||{model:m,n:0,b:new Set(),acc:[],cost:[]};
+  mo.n++;mo.b.add(r.benchmark);mo.acc.push(r.candidate_pass_rate);if(r.candidate_cost_usd!=null)mo.cost.push(r.candidate_cost_usd);});
+ const provs=Object.values(P);
+ const COL={anthropic:"var(--acc)",openai:"var(--good)",deepseek:"#a371f7",google:"#e3a008"};
+ const LB=["Accuracy","Savings","Coding","Reasoning","Replay","Safety"];
+ const series=provs.map(o=>({name:o.prov,color:COL[o.prov]||"var(--mut)",values:[
+   (avg(o.acc)||0)/100,Math.min(1,(avg(o.save)||0)/100),(avg(o.coding)||0)/100,(avg(o.reason)||0)/100,(avg(o.replay)||0)/100,(o.safeN?o.safe/o.safeN:0)]}));
+ const legend=provs.map(o=>`<span style="display:inline-flex;align-items:center;gap:6px;margin-right:16px"><i style="width:10px;height:10px;border-radius:2px;background:${COL[o.prov]||'var(--mut)'};display:inline-block"></i>${esc(provLabel(o.prov))}</span>`).join("");
+ const lead=(fn,fmt,lower)=>{let best=null;provs.forEach(o=>{const v=fn(o);if(v==null||isNaN(v))return;if(!best||(lower?v<best.v:v>best.v))best={p:o.prov,v};});return best?`<span class="badge b-good">${esc(provLabel(best.p))} · ${fmt(best.v)}</span>`:"—";};
+ const leaders=[["Best accuracy",lead(o=>avg(o.acc),v=>Math.round(v)+"%")],
+  ["Best savings",lead(o=>avg(o.save),v=>"−"+Math.round(v)+"%")],
+  ["Best coding",lead(o=>avg(o.coding),v=>Math.round(v)+"%")],
+  ["Best safety",lead(o=>o.safeN?o.safe/o.safeN*100:null,v=>Math.round(v)+"%")],
+  ["Most models",lead(o=>o.models.size,v=>v+" models")]]
+  .map(([l,v])=>`<div class=set-row style="padding:10px 0"><div class=k style="font-weight:500">${l}</div>${v}</div>`).join("");
+ const KNOWN=[["anthropic","Anthropic"],["openai","OpenAI"],["deepseek","DeepSeek"],["google","Gemini"],["groq","Groq"],["openrouter","OpenRouter"]];
+ const mrow=(l,v,c)=>`<div style="margin-top:9px"><div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--mut)"><span>${l}</span><span style="color:var(--fg);font-weight:600">${v==null?"—":Math.round(v)+"%"}</span></div><div class=mt-bar style="margin-top:4px"><i style="width:${v==null?0:Math.min(100,Math.round(v))}%${c?";background:"+c:""}"></i></div></div>`;
+ const cards=KNOWN.map(([k,l])=>{const o=P[k];const has=o&&o.n;
+  return `<div class="card hov"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+    <div style="font-weight:650;font-size:15px;white-space:nowrap">${esc(l)}</div>${has?'<span class="badge b-good">tested</span>':'<span class="badge b-mut">not tested</span>'}</div>
+   <div class="grid g2" style="gap:10px;margin-top:12px">
+    <div><div style="color:var(--mut);font-size:11px">MODELS</div><div style="font-size:18px;font-weight:700">${has?o.models.size:"—"}</div></div>
+    <div><div style="color:var(--mut);font-size:11px">RUNS</div><div style="font-size:18px;font-weight:700">${has?o.n:"—"}</div></div></div>
+   ${has?`<div style="margin-top:6px">${mrow("Accuracy",avg(o.acc))}${mrow("Cost saved",avg(o.save),"var(--good)")}${mrow("Replay",avg(o.replay))}${mrow("Scenarios",avg(o.scen))}</div>`:'<div class=muted style="font-size:12px;margin-top:10px">not benchmarked yet</div>'}</div>`;}).join("");
+ const modelRows=Object.values(M2).map(o=>({model:o.model,runs:o.n,benchmarks:o.b.size,acc:avg(o.acc),cost:avg(o.cost)}));
+ M().innerHTML=`<p class=lead>Provider-agnostic by design — the same proof pipeline runs across every OpenAI-compatible and native provider. The radar profiles each provider's candidate models across the key dimensions.</p>
+  <div class="grid g2" style="align-items:start">
+   <div class=chart><h3>Provider capability profile</h3><p class=ch-sub>normalized 0–100% across dimensions</p>
+    <div style="display:flex;justify-content:center">${radarMulti(LB,series)}</div>
+    <div class=legend style="justify-content:center;margin-top:8px">${legend}</div></div>
+   <div class=card><div class=sect style="margin:0 0 6px">Category leaders</div>${leaders}</div>
+  </div>
+  <div class=sect>Providers</div><div class="grid auto">${cards}</div>
   <div class=sect>Per-model matrix</div><div id=pmtbl></div>`;
  table("pmtbl",[
   {key:"model",label:"Model",html:r=>`<span class=mono>${esc(r.model)}</span>`},
-  {key:"provider",label:"Provider",get:r=>provOf(r.model),html:r=>`<span class="badge b-mut">${esc(provOf(r.model))}</span>`},
+  {key:"provider",label:"Provider",get:r=>provOf(r.model),html:r=>`<span class="badge b-mut">${esc(provLabel(provOf(r.model)))}</span>`},
   {key:"runs",label:"Runs"},
   {key:"benchmarks",label:"Benchmarks"},
-  {key:"avg_accuracy",label:"Avg Accuracy",sort:r=>r.avg_accuracy,html:r=>pct((r.avg_accuracy||0)*100)},
-  {key:"avg_cost_usd",label:"Avg Cost",sort:r=>r.avg_cost_usd==null?Infinity:r.avg_cost_usd,html:r=>r.avg_cost_usd==null?"—":money(r.avg_cost_usd)},
- ],rowsRaw,{});
+  {key:"acc",label:"Avg Accuracy",sort:r=>r.acc,html:r=>r.acc==null?"—":Math.round(r.acc)+"%"},
+  {key:"cost",label:"Avg Cost / run",sort:r=>r.cost==null?Infinity:r.cost,html:r=>r.cost==null?"—":money(r.cost)},
+ ],modelRows,{sortKey:"acc",dir:-1});
 }
 async function pgVersions(){
  const v=await getJSON("/api/version-summary");const rows=(v&&v.rows)||[];
