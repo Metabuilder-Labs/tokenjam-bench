@@ -54,9 +54,9 @@ bench._build_prompt(example)  # OK — prompt construction
 bench.score(task, trace)      # raises NotImplementedError(EXPERIMENTAL_NOTICE)
 ```
 
-Running it through the agent proof pipeline (`tjbench agent --benchmark
-swe-bench-lite …`) will therefore fail loudly during scoring with the
-experimental notice, instead of emitting a fake pass-rate.
+`tjb agent` gates this suite out entirely (`--benchmark swe-bench-lite` exits
+with a clear message), and any other path that reaches `score()` fails loudly
+with the experimental notice — so it can never emit a fake pass-rate.
 
 ## Roadmap to a real benchmark
 

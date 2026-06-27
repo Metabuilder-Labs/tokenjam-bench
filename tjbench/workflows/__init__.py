@@ -12,7 +12,7 @@ Offline determinism: each task embeds `# echo: <reference>` so the deterministic
 mock model returns the reference answer (and a weaker candidate returns a wrong
 string the judge then fails), exercising the judge seam with no keys.
 
-Run:  tjbench workflow customer-support --original anthropic:claude-opus-4-7 --mock
+Run:  tjb run --benchmark customer-support --original anthropic:claude-opus-4-7
 """
 from __future__ import annotations
 

@@ -88,7 +88,7 @@ Every `ProofResult` includes:
 
 ```bash
 # 1. Check current version
-tjbench version
+tjb version
 # tokenjam-bench 0.1.0
 # tokenjam 0.4.2
 
@@ -98,12 +98,12 @@ make update-tokenjam
 # → tokenjam 0.4.3 installed
 
 # 3. Verify new version
-tjbench version
+tjb version
 # tokenjam-bench 0.1.0
 # tokenjam 0.4.3
 
 # 4. Re-run benchmark
-tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
+tjb run --benchmark samples --original anthropic:claude-opus-4-7 --mock
 
 # 5. Compare results/ artifacts
 # proof_samples_claude-opus-4-7_0.4.2_20250624T214000.json

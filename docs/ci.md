@@ -52,7 +52,7 @@ DEEPSEEK_API_KEY=... make ci-bench   # adds the live proofs
 ```
 
 Artifacts land in `results/` and show up in the dashboard (`run.py serve`) and in
-`tjbench matrix` — so the nightly run builds your cross-version history over time.
+`tjb matrix` — so the nightly run builds your cross-version history over time.
 
 ## Honesty
 

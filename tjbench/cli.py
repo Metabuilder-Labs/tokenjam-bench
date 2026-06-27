@@ -1,7 +1,8 @@
-"""`tjbench` — run TokenJam savings/accuracy proofs from the command line."""
+"""`tjb` — run TokenJam savings/accuracy proofs from the command line."""
 from __future__ import annotations
 
-import json as _json
+import os
+from pathlib import Path
 
 import click
 from rich.console import Console
@@ -10,6 +11,7 @@ from rich.table import Table
 from tjbench.agent_pipeline import run_agent_proof
 from tjbench.benchmarks import AGENT_BENCHMARK_NAMES, BENCHMARK_NAMES
 from tjbench.matrix import build_series, load_artifacts, series_to_dict, total_regressions
+from tjbench.models.registry import parse_spec
 from tjbench.pipeline import resolve_candidate, run_proof
 from tjbench.report_html import load_and_render, write_html_report
 from tjbench.version import resolve_tokenjam_build
@@ -17,10 +19,54 @@ from tjbench.workflows import ALL_WORKFLOW_NAMES, is_agentic_workflow
 
 console = Console()
 
+# `tjb run` accepts every text benchmark plus the text + agentic workflow suites:
+# the `workflow` command is merged in here (agentic suites route to the agent
+# pipeline). swe-bench-lite stays out — it's an agent-only experimental scaffold.
+RUN_BENCHMARK_NAMES = BENCHMARK_NAMES + ALL_WORKFLOW_NAMES
+
+# Provider → env var that holds its API key. Used to decide whether `run` can go
+# live or should fall back to the offline mock (offline-first zero-flag UX).
+_PROVIDER_KEY_ENV = {
+    "anthropic": ["ANTHROPIC_API_KEY"],
+    "openai": ["OPENAI_API_KEY"],
+    "deepseek": ["DEEPSEEK_API_KEY"],
+    "google": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+}
+
+
+def _provider_has_key(spec: str) -> bool:
+    """True if the spec's provider has an API key in the environment."""
+    try:
+        provider, _ = parse_spec(spec)
+    except ValueError:
+        return False
+    if provider == "mock":
+        return True
+    return any(os.environ.get(v) for v in _PROVIDER_KEY_ENV.get(provider, []))
+
+
+def _default_serve_dir() -> str:
+    """Pick a non-empty artifacts dir so `tjb serve` is never blank out of the box:
+    prefer a populated local results/, else fall back to the bundled real evidence."""
+    def has_artifacts(d: Path) -> bool:
+        return d.is_dir() and any(d.glob("*.json"))
+
+    results = Path("results")
+    if has_artifacts(results):
+        return str(results)
+    bundled = Path(__file__).resolve().parents[1] / "docs" / "evidence" / "live" / "2026-06-26-multipair"
+    if has_artifacts(bundled):
+        return str(bundled)
+    return str(results)
+
 
 @click.group()
 def cli() -> None:
-    """Prove TokenJam's savings against executable-accuracy ground truth."""
+    """Prove TokenJam's savings against executable-accuracy ground truth.
+
+    Start here:  `tjb run` (offline zero-flag proof) and `tjb serve` (dashboard).
+    Advanced:    agent, replay, matrix, history — present but off the common path.
+    """
 
 
 @cli.command("version")
@@ -46,43 +92,62 @@ def cmd_recommend(original: str) -> None:
 
 
 @cli.command("run")
-@click.option("--benchmark", type=click.Choice(BENCHMARK_NAMES), default="samples",
-              show_default=True, help="Which benchmark to run.")
-@click.option("--original", required=True,
+@click.option("--benchmark", type=click.Choice(RUN_BENCHMARK_NAMES), default="samples",
+              show_default=True, metavar="NAME",
+              help="Benchmark or workflow suite to run (default: samples).")
+@click.option("--original", default="anthropic:claude-opus-4-7", show_default=True,
               help="Original model spec, e.g. anthropic:claude-opus-4-7.")
 @click.option("--candidate", default=None,
               help="Override the candidate model (default: TokenJam's recommendation).")
 @click.option("--limit", type=int, default=None, help="Cap number of tasks.")
-@click.option("--samples", type=int, default=1, show_default=True,
-              help="Samples per task per model (k). >1 enables pass@k / variance.")
-@click.option("--temperature", type=float, default=0.0, show_default=True,
-              help="Sampling temperature (use >0 with --samples for variance).")
-@click.option("--mock", is_flag=True,
-              help="Offline run (no provider SDKs/keys/spend). Numbers illustrative.")
-@click.option("--mock-candidate-accuracy", type=float, default=0.85, show_default=True,
-              help="In --mock mode, simulated candidate pass fraction.")
-@click.option("--max-tokens", type=int, default=1024, show_default=True)
+@click.option("--mock", is_flag=True, default=None,
+              help="Force offline run. Auto-enabled when the provider has no API key.")
 @click.option("--out", default="results", show_default=True,
               help="Directory for the version-stamped JSON artifact.")
 @click.option("--html", "make_html", is_flag=True,
               help="Also write a self-contained HTML report next to the JSON.")
 @click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
+# Power flags — kept, but hidden from the primary help to keep the common path clean.
+@click.option("--samples", type=int, default=1, hidden=True,
+              help="Samples per task per model (k). >1 enables pass@k / variance.")
+@click.option("--temperature", type=float, default=0.0, hidden=True,
+              help="Sampling temperature (use >0 with --samples for variance).")
+@click.option("--max-tokens", type=int, default=1024, hidden=True)
+@click.option("--mock-candidate-accuracy", type=float, default=0.85, hidden=True,
+              help="In mock mode, simulated candidate pass fraction.")
 def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | None,
-            samples: int, temperature: float, mock: bool, mock_candidate_accuracy: float,
-            max_tokens: int, out: str, make_html: bool, output_json: bool) -> None:
-    """Run an original-vs-candidate proof and write a stamped artifact."""
+            mock: bool | None, out: str, make_html: bool, output_json: bool,
+            samples: int, temperature: float, max_tokens: int,
+            mock_candidate_accuracy: float) -> None:
+    """Run an original-vs-candidate proof and write a stamped artifact.
+
+    Zero-flag: `tjb run` benchmarks `samples` for anthropic:claude-opus-4-7 against
+    its TokenJam downgrade candidate, offline (mock) unless a provider key is set.
+    Text + agentic workflow suites (customer-support, n8n, …) run here too.
+    """
+    # Offline-first: auto-enable mock when --mock wasn't passed and the provider
+    # has no key, so the zero-flag path always works with no SDKs/keys/spend.
+    if mock is None:
+        mock = not _provider_has_key(original)
+        if mock and not output_json:
+            console.print(
+                "[dim]No provider API key found — running offline (mock). "
+                "Set e.g. ANTHROPIC_API_KEY for a live proof.[/dim]"
+            )
+
     try:
-        result = run_proof(
-            benchmark_name=benchmark,
-            original_spec=original,
-            candidate_spec=candidate,
-            limit=limit,
-            samples=samples,
-            temperature=temperature,
-            mock=mock,
-            mock_candidate_accuracy=mock_candidate_accuracy,
-            max_tokens=max_tokens,
-        )
+        if is_agentic_workflow(benchmark):
+            result = run_agent_proof(
+                benchmark_name=benchmark, original_spec=original, candidate_spec=candidate,
+                limit=limit, samples=samples, temperature=temperature,
+                max_tokens=max_tokens, mock=mock,
+            )
+        else:
+            result = run_proof(
+                benchmark_name=benchmark, original_spec=original, candidate_spec=candidate,
+                limit=limit, samples=samples, temperature=temperature, mock=mock,
+                mock_candidate_accuracy=mock_candidate_accuracy, max_tokens=max_tokens,
+            )
     except Exception as exc:
         raise click.ClickException(str(exc)) from exc
 
@@ -180,103 +245,50 @@ def _render_proof(result, path, output_json: bool) -> None:
     console.print(f"\nArtifact: [dim]{path}[/dim]")
 
 
-@cli.command("workflow")
-@click.argument("suite", type=click.Choice(ALL_WORKFLOW_NAMES))
-@click.option("--original", required=True,
-              help="Original model spec, e.g. anthropic:claude-opus-4-7.")
-@click.option("--candidate", default=None,
-              help="Override the candidate model (default: TokenJam's recommendation).")
-@click.option("--limit", type=int, default=None, help="Cap number of workflow tasks.")
-@click.option("--samples", type=int, default=1, show_default=True,
-              help="Samples per task per model (k). >1 enables pass@k / variance.")
-@click.option("--temperature", type=float, default=0.0, show_default=True)
-@click.option("--mock", is_flag=True,
-              help="Offline run (no provider SDKs/keys/spend). Numbers illustrative.")
-@click.option("--mock-candidate-accuracy", type=float, default=0.85, show_default=True,
-              help="In --mock mode, simulated candidate pass fraction.")
-@click.option("--max-tokens", type=int, default=1024, show_default=True)
-@click.option("--out", default="results", show_default=True,
-              help="Directory for the version-stamped JSON artifact.")
-@click.option("--html", "make_html", is_flag=True,
-              help="Also write a self-contained HTML report next to the JSON.")
-@click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
-def cmd_workflow(suite: str, original: str, candidate: str | None, limit: int | None,
-                 samples: int, temperature: float, mock: bool,
-                 mock_candidate_accuracy: float, max_tokens: int, out: str,
-                 make_html: bool, output_json: bool) -> None:
-    """Benchmark a production workflow (e.g. customer-support).
-
-    A workflow is a dataset-driven, judge-scored benchmark that flows through the
-    same proof stats (Wilson CI + McNemar + measured cost) as everything else.
-    Text suites (customer-support, enterprise-rag, …) are judge-scored; agentic
-    suites (n8n, coding-workflow) run multi-turn through the AgentRunner. Either
-    way the stats are identical. The judge backend is selected via TJBENCH_JUDGE
-    (offline MockJudge by default; `TJBENCH_JUDGE=deepseek` for a real judge).
-    """
-    try:
-        if is_agentic_workflow(suite):
-            result = run_agent_proof(
-                benchmark_name=suite,
-                original_spec=original,
-                candidate_spec=candidate,
-                limit=limit,
-                samples=samples,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                mock=mock,
-            )
-        else:
-            result = run_proof(
-                benchmark_name=suite,
-                original_spec=original,
-                candidate_spec=candidate,
-                limit=limit,
-                samples=samples,
-                temperature=temperature,
-                mock=mock,
-                mock_candidate_accuracy=mock_candidate_accuracy,
-                max_tokens=max_tokens,
-            )
-    except Exception as exc:
-        raise click.ClickException(str(exc)) from exc
-
-    path = result.write(out)
-    _render_proof(result, path, output_json)
-    if make_html and not output_json:
-        hp = write_html_report(result.to_dict(), out)
-        console.print(f"HTML report: [dim]{hp}[/dim]")
-    _record_history(result, path, out)
-
-
 @cli.command("agent")
 @click.option("--benchmark", type=click.Choice(AGENT_BENCHMARK_NAMES),
-              default="sample-agent", show_default=True, help="Agent benchmark to run.")
-@click.option("--original", required=True,
+              default="sample-agent", show_default=True, metavar="NAME",
+              help="Agent benchmark to run.")
+@click.option("--original", default="anthropic:claude-opus-4-7", show_default=True,
               help="Original model spec, e.g. anthropic:claude-opus-4-7.")
 @click.option("--candidate", default=None,
               help="Override candidate (default: TokenJam's recommendation).")
 @click.option("--limit", type=int, default=None, help="Cap number of tasks.")
-@click.option("--samples", type=int, default=1, show_default=True,
-              help="Samples per task per model (k).")
-@click.option("--temperature", type=float, default=0.0, show_default=True)
-@click.option("--max-turns", type=int, default=8, show_default=True,
-              help="Max agent turns before giving up on a task.")
-@click.option("--max-tokens", type=int, default=1024, show_default=True)
-@click.option("--mock", is_flag=True,
-              help="Offline run (deterministic tool-calling mock; no keys/spend).")
-@click.option("--candidate-behavior", type=click.Choice(["ok", "wrong", "unsafe"]),
-              default="ok", show_default=True,
-              help="In --mock mode: simulate the candidate's behavior "
-                   "('unsafe' exercises the dangerous-tool safety gate).")
+@click.option("--mock", is_flag=True, default=None,
+              help="Force offline run. Auto-enabled when the provider has no API key.")
 @click.option("--out", default="results", show_default=True)
 @click.option("--html", "make_html", is_flag=True,
               help="Also write a self-contained HTML report next to the JSON.")
 @click.option("--json", "output_json", is_flag=True, help="Emit machine-readable JSON.")
+# Power flags — kept, hidden from the primary help.
+@click.option("--samples", type=int, default=1, hidden=True,
+              help="Samples per task per model (k).")
+@click.option("--temperature", type=float, default=0.0, hidden=True)
+@click.option("--max-turns", type=int, default=8, hidden=True,
+              help="Max agent turns before giving up on a task.")
+@click.option("--max-tokens", type=int, default=1024, hidden=True)
+@click.option("--candidate-behavior", type=click.Choice(["ok", "wrong", "unsafe"]),
+              default="ok", hidden=True,
+              help="In mock mode: simulate the candidate's behavior "
+                   "('unsafe' exercises the dangerous-tool safety gate).")
 def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int | None,
+              mock: bool | None, out: str, make_html: bool, output_json: bool,
               samples: int, temperature: float, max_turns: int, max_tokens: int,
-              mock: bool, candidate_behavior: str, out: str, make_html: bool,
-              output_json: bool) -> None:
+              candidate_behavior: str) -> None:
     """Run a multi-turn AGENT proof (tool use + safety), with the same stats."""
+    if benchmark == "swe-bench-lite":
+        raise click.ClickException(
+            "swe-bench-lite is an experimental scaffold with fix-verification "
+            "NOT implemented — scoring is disabled, so it cannot produce a real "
+            "pass-rate. Use --benchmark sample-agent for a runnable agent proof."
+        )
+    if mock is None:
+        mock = not _provider_has_key(original)
+        if mock and not output_json:
+            console.print(
+                "[dim]No provider API key found — running offline (mock). "
+                "Set e.g. ANTHROPIC_API_KEY for a live proof.[/dim]"
+            )
     try:
         result = run_agent_proof(
             benchmark_name=benchmark, original_spec=original, candidate_spec=candidate,
@@ -330,7 +342,7 @@ def cmd_scenarios(output_json: bool) -> None:
             console.print(f"    • {tid}")
         console.print(f"    [dim]dangerous tools (safety gate): {info['dangerous_tools']}[/dim]")
     console.print(
-        "\n[dim]Run one: tjbench agent --benchmark coding-assistant "
+        "\n[dim]Run one: tjb agent --benchmark coding-assistant "
         "--original anthropic:claude-opus-4-7 --mock --html[/dim]"
     )
 
@@ -381,15 +393,19 @@ def cmd_replay(telemetry: str, candidate: str | None, judge_backend: str | None,
 
 
 @cli.command("serve")
-@click.option("--dir", "directory", default="results", show_default=True,
-              help="Directory of proof artifacts to serve.")
+@click.option("--dir", "directory", default=None,
+              help="Directory of proof artifacts to serve "
+                   "(default: your results/, else the bundled real evidence).")
 @click.option("--host", default="127.0.0.1", show_default=True)
 @click.option("--port", default=7392, show_default=True)
 @click.option("--open", "open_browser", is_flag=True, help="Open the dashboard in a browser.")
-def cmd_serve(directory: str, host: str, port: int, open_browser: bool) -> None:
+def cmd_serve(directory: str | None, host: str, port: int, open_browser: bool) -> None:
     """Start the live proof dashboard (offline, auto-refreshing)."""
     from tjbench.dashboard import serve
 
+    if directory is None:
+        directory = _default_serve_dir()
+        console.print(f"[dim]Serving artifacts from: {directory}[/dim]")
     if open_browser:
         import threading
         import webbrowser
@@ -435,7 +451,7 @@ def cmd_history_list(benchmark: str | None, limit: int, db: str, output_json: bo
         console.print_json(data=runs)
         return
     if not runs:
-        console.print("[dim]No runs recorded. Run a proof, or `tjbench history ingest`.[/dim]")
+        console.print("[dim]No runs recorded. Run a proof, or `tjb history ingest`.[/dim]")
         return
     table = Table()
     for col in ("when", "benchmark", "tokenjam", "original → candidate", "n",
@@ -629,7 +645,3 @@ def cmd_matrix(ctx: click.Context, directory: str, output_json: bool) -> None:
         elif series:
             console.print("\n[green]✓ no cross-version regressions.[/green]")
     ctx.exit(1 if n else 0)
-
-
-def _summary_json(result_dict: dict) -> str:  # pragma: no cover - convenience
-    return _json.dumps(result_dict, indent=2)

@@ -12,7 +12,7 @@ tokenjam-bench/
 ├── .gitignore
 ├── results/.gitkeep          # Output directory for JSON artifacts
 │
-├── cli.py                  # Click CLI: tjbench version | recommend | run | agent
+├── cli.py                  # Click CLI: tjb version | recommend | run | agent
 ├── pipeline.py             # Single-shot proof pipeline (run_proof, assemble_proof)
 ├── agent_pipeline.py       # Agent proof pipeline (run_agent_proof)
 ├── report.py               # ProofResult, ProofStats, TaskOutcome dataclasses
@@ -68,7 +68,7 @@ tokenjam-bench/
 ### Single-Shot Proof Pipeline
 
 ```
-CLI: tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
+CLI: tjb run --benchmark samples --original anthropic:claude-opus-4-7 --mock
     │
     ▼
 resolve_candidate("anthropic:claude-opus-4-7")
@@ -119,7 +119,7 @@ CLI renders Rich table (or --json)
 ### Agent Proof Pipeline
 
 ```
-CLI: tjbench agent --benchmark sample-agent --original anthropic:claude-opus-4-7 --mock
+CLI: tjb agent --benchmark sample-agent --original anthropic:claude-opus-4-7 --mock
     │
     ▼
 Same candidate resolution via [recommend.py](api-reference.md#recommendpy)

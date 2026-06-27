@@ -12,7 +12,7 @@ any proof (run / agent / replay / scenario / ci_benchmark)
         ▼  query layer
    list_runs · versions · trend · configs
         ▲
-   CLI: tjbench history …          Dashboard: /api/history + auto-ingest on serve
+   CLI: tjb history …          Dashboard: /api/history + auto-ingest on serve
 ```
 
 DuckDB comes in via the `tokenjam` dependency — we never add it. The schema is
@@ -37,9 +37,9 @@ the same results never duplicates.
 
 Recording is automatic and best-effort (it never breaks a run):
 
-- `tjbench run|agent|replay …` records into `results/history.duckdb`
+- `tjb run|agent|replay …` records into `results/history.duckdb`
 - `ci_benchmark.py` records every CI run
-- `tjbench serve` ingests `results/` on startup
+- `tjb serve` ingests `results/` on startup
 
 Backfill from existing artifacts at any time:
 

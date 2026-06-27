@@ -24,7 +24,7 @@ data** — `scan_runs()` skips any artifact marked `mock`/`demo`.
 ```bash
 export DEEPSEEK_API_KEY=sk-...        # env only; never committed
 ./scripts/run_real_benchmarks.sh
-tjbench serve
+tjb serve
 ```
 
 ## Honest reading

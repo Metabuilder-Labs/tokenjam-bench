@@ -6,7 +6,7 @@ no terminal, no JS frameworks, no external HTTP. Inline CSS + inline SVG bars,
 mirroring TokenJam Lens's offline-first discipline.
 
 Renders from the dict (not the dataclass) so both paths use one renderer:
-`tjbench run --html` (live result.to_dict()) and `tjbench report artifact.json`
+`tjb run --html` (live result.to_dict()) and `tjb report artifact.json`
 (a saved artifact).
 """
 from __future__ import annotations

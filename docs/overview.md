@@ -33,8 +33,8 @@ TokenJam is consumed as a **published package**, never vendored. To test a new r
 
 ```bash
 make update-tokenjam     # pip install -U tokenjam ; prints the new version
-tjbench version            # shows the exact tokenjam build proofs will stamp
-tjbench run ...          # every artifact records tokenjam_version
+tjb version            # shows the exact tokenjam build proofs will stamp
+tjb run ...          # every artifact records tokenjam_version
 ```
 
 Because each artifact in `results/` carries `tokenjam_version`, you can re-run the same benchmark across releases and diff the savings/accuracy — catching the day a TokenJam change moves the numbers.

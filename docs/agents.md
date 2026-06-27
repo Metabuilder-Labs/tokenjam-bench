@@ -286,4 +286,4 @@ The mock agent client simulates three behaviors for testing:
 - [Pipelines](pipelines.md#agent-proof-pipeline) — How agents fit into the proof pipeline
 - [Models](models.md#toolcallingclient) — ToolCallingClient protocol
 - [Benchmarks](benchmarks.md#agent-benchmarks) — AgentBenchmark and AgentTask
-- [CLI Reference](cli-reference.md#tjbench-agent) — `tjbench agent` command
+- [CLI Reference](cli-reference.md#tjb-agent) — `tjb agent` command

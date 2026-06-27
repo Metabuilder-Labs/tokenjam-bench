@@ -7,7 +7,7 @@ Welcome to the **tokenjam-bench** documentation. This is the official benchmarki
 1. [Overview](overview.md) — What this project is and why it exists
 2. [Architecture](architecture.md) — System design and data flow
 3. [Quickstart](quickstart.md) — Get running in 5 minutes
-4. [CLI Reference](cli-reference.md) — Complete `tjbench` command reference
+4. [CLI Reference](cli-reference.md) — Complete `tjb` command reference
 5. [Pipelines](pipelines.md) — Single-shot and agent proof pipelines
 6. [Models](models.md) — Model client adapters and protocols
 7. [Benchmarks](benchmarks.md) — Available benchmarks and scoring

@@ -21,7 +21,7 @@ destructive tool that trips the safety gate).
 List them:
 
 ```bash
-python3 run.py scenarios          # or: tjbench scenarios
+python3 run.py scenarios          # or: tjb scenarios
 ```
 
 ## Run a suite
@@ -38,7 +38,7 @@ python3 run.py agent --benchmark rag-support \
 
 Each run produces the same `ProofResult` artifact as every other benchmark, so it
 appears in the **dashboard** (`run.py serve`), renders an **HTML report**, and
-participates in **`tjbench matrix`** — no extra wiring.
+participates in **`tjb matrix`** — no extra wiring.
 
 ## Add your own suite (extensibility)
 
