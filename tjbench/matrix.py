@@ -13,7 +13,7 @@ tech-lead review asked for:
   - recommendation change — TokenJam now downgrades to a different candidate.
 
 The workflow: run a proof, `make update-tokenjam`, run again; artifacts pile up
-in results/ stamped by version; `tjbench matrix` shows the trend and the day a
+in results/ stamped by version; `tjb matrix` shows the trend and the day a
 release regressed.
 """
 from __future__ import annotations

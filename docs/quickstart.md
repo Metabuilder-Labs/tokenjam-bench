@@ -9,7 +9,7 @@
 
 ```bash
 cd tokenjam-bench
-pip install -e ".[dev]"
+pip install -e .
 ```
 
 For live provider support (optional):
@@ -20,17 +20,19 @@ pip install -e ".[providers,datasets]"
 ## Verify Installation
 
 ```bash
-tjbench version
+tjb version
 ```
 
 This shows both the bench version and the installed TokenJam version that proofs will be stamped with.
 
 ## Run Your First Proof (Offline, No Keys)
 
-The fastest way to see the pipeline in action is with `--mock`, which runs deterministically with no provider SDKs, no keys, and no spend:
+Just run `tjb run` — no flags. It defaults to the `samples` benchmark and
+`anthropic:claude-opus-4-7`, and with no provider key in the environment it goes
+offline (mock) automatically: no provider SDKs, no keys, no spend.
 
 ```bash
-tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
+tjb run
 ```
 
 Output (abridged):
@@ -47,12 +49,22 @@ anthropic:claude-opus-4-7 → anthropic:claude-haiku-4-5 · Δcost -84.0% (measu
 verdict: insufficient_evidence  (n=5 < 10 — too few tasks for a significance verdict)
 ```
 
-> **Note**: `--mock` numbers are illustrative — for plumbing verification, not actual proofs. With only n=5 sample tasks the verdict is `insufficient_evidence` (the gate is `MIN_TASKS_FOR_VERDICT = 10`); raise `--limit` on a real suite for a defensible result. See [Honesty](#honesty) below.
+> **Note**: offline (mock) numbers are illustrative — for plumbing verification, not actual proofs. With only n=5 sample tasks the verdict is `insufficient_evidence` (the gate is `MIN_TASKS_FOR_VERDICT = 10`); raise `--limit` on a real suite for a defensible result. See [Honesty](#honesty) below.
+
+## View the Evidence Dashboard
+
+```bash
+tjb serve
+```
+
+With no `--dir`, `tjb serve` opens your populated `results/` if present, otherwise
+the **bundled real evidence** (`docs/evidence/live/2026-06-26-multipair`), so the
+dashboard is never blank on a fresh checkout.
 
 ## Check What TokenJam Recommends
 
 ```bash
-tjbench recommend --original anthropic:claude-opus-4-7
+tjb recommend --original anthropic:claude-opus-4-7
 ```
 
 This queries [`tokenjam.core.optimize.DOWNGRADE_CANDIDATES`](https://github.com/HoomanDigital/tokenjam/blob/main/tokenjam/core/optimize/analyzers/model_downgrade.py) and shows the cheaper model TokenJam would route to.
@@ -61,7 +73,7 @@ This queries [`tokenjam.core.optimize.DOWNGRADE_CANDIDATES`](https://github.com/
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
-tjbench run --benchmark humaneval --original anthropic:claude-opus-4-7 --limit 50
+tjb run --benchmark humaneval --original anthropic:claude-opus-4-7 --limit 50
 ```
 
 This runs HumanEval on Opus and on TokenJam's recommended downgrade (Haiku), executes both against hidden tests, and reports the cost saved and the pass-rate delta — stamped to the installed TokenJam version.
@@ -69,7 +81,7 @@ This runs HumanEval on Opus and on TokenJam's recommended downgrade (Haiku), exe
 ## Run an Agent Proof (Multi-Turn, Tool-Use)
 
 ```bash
-tjbench agent --benchmark sample-agent --original anthropic:claude-opus-4-7 --mock
+tjb agent --benchmark sample-agent --original anthropic:claude-opus-4-7 --mock
 ```
 
 This exercises the [agent pipeline](pipelines.md#agent-proof-pipeline) with tool-calling, safety validation, and multi-turn scoring.
@@ -78,8 +90,8 @@ This exercises the [agent pipeline](pipelines.md#agent-proof-pipeline) with tool
 
 ```bash
 make update-tokenjam     # pip install -U tokenjam
-tjbench version          # confirm new version
-tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
+tjb version              # confirm new version
+tjb run                  # re-run the offline proof on the new version
 ```
 
 Compare `results/` artifacts across versions to see how TokenJam changes affect recommendations.
@@ -95,8 +107,8 @@ Compare `results/` artifacts across versions to see how TokenJam changes affect 
 
 ## Honesty
 
-- **Mock runs** (`--mock`) are flagged as illustrative in reports
-- **Small samples** (`--limit < 30`) cannot reach statistical significance — reports will say `insufficient_evidence`
+- **Offline (mock) runs** are flagged as illustrative in reports
+- **Small samples** (fewer than 10 tasks) cannot reach a significance verdict — reports will say `insufficient_evidence`
 - **Cost fallback**: If TokenJam's pricing table lacks a model, we use `$0.50/$2.00` per MTok defaults and flag it
 - **Accuracy is suite-specific**: Pass-rate on HumanEval ≠ general coding ability
 

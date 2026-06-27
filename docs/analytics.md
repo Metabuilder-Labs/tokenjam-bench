@@ -12,7 +12,7 @@ results/history.duckdb (P3)
    │     Overview · Leaderboards · Providers      /api/version-summary
    │     Versions · Regressions · Trends · Reports /api/regressions · /api/trend
    │
-   └─ CLI   tjbench history leaderboard|providers|regressions|versions|trend  (+ --json)
+   └─ CLI   tjb history leaderboard|providers|regressions|versions|trend  (+ --json)
 ```
 
 Reads open the DB **read-only**, so the dashboard and CLI coexist with a

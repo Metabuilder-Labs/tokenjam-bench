@@ -6,7 +6,7 @@
         --candidate deepseek:deepseek-chat --limit 20 --html
 
 A thin launcher so you can run from a checkout without installing. The code
-lives in the `tjbench` package; the installed `tjbench` console script
+lives in the `tjbench` package; the installed `tjb` console script
 (`tjbench.cli:cli`) works the same once installed.
 """
 from tjbench.cli import cli

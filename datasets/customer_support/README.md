@@ -1,7 +1,7 @@
 # Customer Support — workflow dataset
 
 Realistic support tickets for an e-commerce + SaaS business, used by the
-**Production Workflow** benchmark family (`tjbench workflow customer-support`).
+**Production Workflow** benchmark family (`tjb workflow customer-support`).
 
 Each ticket is a real-shaped support request with a **grounded reference reply**
 and the **knowledge-base context** the answer must stay faithful to. The
@@ -38,11 +38,11 @@ passwords, no card numbers) — so a cheaper model is judged on staying safe too
 
 ```bash
 # offline (no keys) — MockJudge, deterministic
-tjbench workflow customer-support --original anthropic:claude-opus-4-7 --mock --html
+tjb workflow customer-support --original anthropic:claude-opus-4-7 --mock --html
 
 # live — DeepEval judge backed by DeepSeek (key from env)
 TJBENCH_JUDGE=deepseek TJBENCH_JUDGE_METRIC=correctness \
-tjbench workflow customer-support \
+tjb workflow customer-support \
   --original deepseek:deepseek-reasoner --candidate deepseek:deepseek-chat --limit 16 --html
 ```
 

@@ -31,14 +31,14 @@ Three integration points:
 
 Use `--candidate` to specify one manually:
 ```bash
-tjbench run --original anthropic:claude-opus-4-7 --candidate anthropic:claude-haiku-4-5
+tjb run --original anthropic:claude-opus-4-7 --candidate anthropic:claude-haiku-4-5
 ```
 
 ### How do I test a new TokenJam release?
 ```bash
 make update-tokenjam  # pip install -U tokenjam
-tjbench version       # confirm new version
-tjbench run ...       # re-run benchmarks
+tjb version       # confirm new version
+tjb run ...       # re-run benchmarks
 ```
 
 ## Benchmarks

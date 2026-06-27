@@ -6,7 +6,7 @@
 > The downsize holds on `gsm8k` for every pair, but the Anthropic `→ haiku-4-5`
 > pairs **significantly regress on `humaneval`** (McNemar p≈0.000) — the harness
 > catches exactly the case a flat "downsize is safe" claim would miss. Serve it
-> with `tjbench serve --dir docs/evidence/live/2026-06-26-multipair`.
+> with `tjb serve --dir docs/evidence/live/2026-06-26-multipair`.
 
 ---
 
@@ -57,7 +57,7 @@ Artifacts: [`judged_deepseek_correctness.html`](judged_deepseek_correctness.html
 
 - **SWE-Bench Lite** — supported (DeepSeek tool-calling is wired), but it's a
   heavier multi-turn agent benchmark needing the SWE-bench dataset and repo
-  context; see the runbook. Run with `tjbench agent --benchmark swe-bench-lite`.
+  context; see the runbook. Run with `tjb agent --benchmark swe-bench-lite`.
 
 ## Honesty notes
 

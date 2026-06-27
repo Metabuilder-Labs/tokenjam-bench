@@ -80,7 +80,7 @@ All write a version-stamped JSON + an HTML report into `results/`.
 
 ```bash
 TJBENCH_JUDGE=deepseek TJBENCH_JUDGE_METRIC=correctness \
-  tjbench run --benchmark judged \
+  tjb run --benchmark judged \
     --original deepseek:deepseek-reasoner --candidate deepseek:deepseek-chat \
     --html
 ```
@@ -88,7 +88,7 @@ TJBENCH_JUDGE=deepseek TJBENCH_JUDGE_METRIC=correctness \
 ### b) HumanEval (executable pass/fail; raise the limit for significance)
 
 ```bash
-tjbench run --benchmark humaneval \
+tjb run --benchmark humaneval \
   --original deepseek:deepseek-reasoner --candidate deepseek:deepseek-chat \
   --limit 30 --html
 ```
@@ -118,14 +118,14 @@ containing:
 - **Final verdict** — `no_significant_regression` / `regression_suspected` /
   `insufficient_evidence` (never "SAFE")
 
-Re-render any saved artifact: `tjbench report results/<file>.json --open`.
+Re-render any saved artifact: `tjb report results/<file>.json --open`.
 
 ## 6. Cross-version regression (the daily-change guard)
 
 ```bash
 make update-tokenjam        # pip install -U tokenjam (new release)
 # re-run the same proof(s) above — artifacts are stamped with the new version
-tjbench matrix              # flags accuracy/cost/recommendation regressions; exits 1 if any
+tjb matrix              # flags accuracy/cost/recommendation regressions; exits 1 if any
 ```
 
 ## Caveats (be honest in the report)

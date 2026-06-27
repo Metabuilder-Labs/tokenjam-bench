@@ -42,8 +42,8 @@ judge = ["deepeval>=1.0"]
 dev = ["pytest", "ruff"]
 
 [project.scripts]
-# Namespaced entry point — no collision with same-named PyPI packages.
-tjbench = "tjbench.cli:cli"
+# Short invocation, matching TokenJam's own `tj`. The package dir stays `tjbench`.
+tjb = "tjbench.cli:cli"
 
 [tool.hatch.build.targets.wheel]
 packages = ["tjbench"]

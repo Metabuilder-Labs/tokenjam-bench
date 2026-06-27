@@ -107,7 +107,7 @@ GROUP=openai    ./scripts/run_multipair_evidence.sh
 # Secondary judged/workflow suites (gpt-4o judge):
 GROUP=judged    ./scripts/run_multipair_evidence.sh
 
-tjbench serve --dir docs/evidence/live/2026-06-26-multipair   # live dashboard
+tjb serve --dir docs/evidence/live/2026-06-26-multipair   # live dashboard
 ```
 
 HumanEval executes model-generated code in a timed subprocess

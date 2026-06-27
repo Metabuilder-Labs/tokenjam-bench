@@ -55,7 +55,7 @@ config. Reproduce the current dashboard with:
 ```bash
 export DEEPSEEK_API_KEY=sk-...          # env only; never committed
 ./scripts/run_real_benchmarks.sh        # gsm8k, humaneval, judged + 4 workflows
-tjbench serve                           # dashboard reads the fresh artifacts
+tjb serve                           # dashboard reads the fresh artifacts
 ```
 
 `demo/seed_demo.py` still exists for **local UI development**, but its artifacts
@@ -64,20 +64,27 @@ mode (`--mock`) likewise never reaches it.
 
 ## CLI
 
+Workflow suites are just another benchmark family — run them through `tjb run`
+(the old `workflow` command was merged in):
+
 ```bash
-tjbench workflow customer-support --original anthropic:claude-opus-4-7 --mock --html
+tjb run --benchmark customer-support --original anthropic:claude-opus-4-7 --html
 ```
 
-Options mirror `tjbench run`: `--original`, `--candidate`, `--limit`,
-`--samples`, `--temperature`, `--mock`, `--max-tokens`, `--out`, `--html`,
-`--json`. The judge backend is chosen via `TJBENCH_JUDGE` (offline `MockJudge`
-by default; `TJBENCH_JUDGE=deepseek` for a real DeepEval judge):
+The same `tjb run` flags apply: `--original`, `--candidate`, `--limit`, `--out`,
+`--html`, `--json` (plus the hidden power flags `--samples`, `--temperature`,
+`--max-tokens`). With no provider key set the run is offline (mock) by default.
+The judge backend is chosen via `TJBENCH_JUDGE` (offline `MockJudge` by default;
+`TJBENCH_JUDGE=deepseek` for a real DeepEval judge):
 
 ```bash
 TJBENCH_JUDGE=deepseek TJBENCH_JUDGE_METRIC=correctness \
-tjbench workflow customer-support \
+tjb run --benchmark customer-support \
   --original deepseek:deepseek-reasoner --candidate deepseek:deepseek-chat --limit 16 --html
 ```
+
+Agentic workflow suites (`n8n`, `coding-workflow`) run the same way — `tjb run`
+routes them through the multi-turn agent pipeline automatically.
 
 ## Datasets
 

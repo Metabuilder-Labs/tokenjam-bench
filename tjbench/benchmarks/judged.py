@@ -7,7 +7,7 @@ model returns the expected answer (a weaker candidate returns a wrong string,
 which the judge then fails) — exercising the judge seam with no keys.
 
 Select the judge backend via env (default offline mock):
-  TJBENCH_JUDGE=deepeval TJBENCH_JUDGE_METRIC=correctness tjbench run \
+  TJBENCH_JUDGE=deepeval TJBENCH_JUDGE_METRIC=correctness tjb run \
       --benchmark judged --original anthropic:claude-opus-4-7
 """
 from __future__ import annotations

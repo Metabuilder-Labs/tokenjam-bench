@@ -15,8 +15,9 @@ Proves the effect of TokenJam's recommendations on cost AND accuracy using execu
 [![License: MIT](https://img.shields.io/badge/license-MIT-3d8eff?labelColor=0d1117)](LICENSE)
 
 ```bash
-pip install -e ".[dev]"
-tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
+pip install -e .
+tjb run          # zero-flag offline proof — writes a stamped artifact
+tjb serve        # browse the bundled real evidence in the dashboard
 ```
 
 **No cloud · No signup · Offline-first**
@@ -76,7 +77,7 @@ Full artifacts: [`docs/evidence/`](docs/evidence/)
 Run tasks on both models, score against objective ground truth, attach Wilson CIs + McNemar p-value.
 
 ```bash
-tjbench run --benchmark humaneval \
+tjb run --benchmark humaneval \
   --original anthropic:claude-opus-4-7 \
   --limit 50
 ```
@@ -91,7 +92,7 @@ tjbench run --benchmark humaneval \
 Multi-turn tool-calling proof with a safety gate — the same Wilson/McNemar rigor applied to agentic workloads.
 
 ```bash
-tjbench agent --benchmark sample-agent \
+tjb agent --benchmark sample-agent \
   --original anthropic:claude-opus-4-7 \
   --mock
 ```
@@ -108,7 +109,7 @@ tjbench agent --benchmark sample-agent \
 Replay your real TokenJam telemetry against the cheaper candidate. No synthetic tasks — your actual prompts, scored for **agreement with your historical outputs** (not correctness, not safety: the original model's output is the reference).
 
 ```bash
-tjbench replay \
+tjb replay \
   --telemetry ~/.config/tj/tj.duckdb \
   --judge deepseek --limit 50
 ```
@@ -123,7 +124,7 @@ tjbench replay \
 Diff proof artifacts across TokenJam releases. Flags accuracy regressions, savings shrinkage, and recommendation changes automatically.
 
 ```bash
-tjbench matrix --dir results/
+tjb matrix --dir results/
 ```
 
 [Details →](docs/cli-reference.md)
@@ -138,7 +139,7 @@ tjbench matrix --dir results/
 Self-contained proof browser — auto-refreshes as new artifacts land in `results/`. No cloud, no signup.
 
 ```bash
-tjbench serve --open
+tjb serve --open
 ```
 
 [Details →](docs/cli-reference.md)
@@ -151,8 +152,8 @@ tjbench serve --open
 Every proof writes a version-stamped JSON artifact and renders a self-contained HTML report alongside it.
 
 ```bash
-tjbench run ... --html
-tjbench report results/tjbench_*.json
+tjb run ... --html
+tjb report results/tjbench_*.json
 ```
 
 [Details →](docs/cli-reference.md)
@@ -166,18 +167,19 @@ tjbench report results/tjbench_*.json
 ## Quickstart (offline, no keys)
 
 ```bash
-pip install -e ".[dev]"
-tjbench run --benchmark samples --original anthropic:claude-opus-4-7 --mock
+pip install -e .
+tjb run            # runs the `samples` benchmark, anthropic:claude-opus-4-7 → its TokenJam candidate
+tjb serve          # browse the bundled real evidence in the dashboard
 ```
 
-`--mock` runs the full pipeline deterministically — no provider SDKs, no keys, no spend. Numbers are illustrative; the plumbing is real.
+`tjb run` with no flags is offline-first: with no provider key in the environment it auto-enables mock mode (no SDKs, no keys, no spend — numbers illustrative, plumbing real) and writes a version-stamped artifact. Set a provider key (e.g. `ANTHROPIC_API_KEY`) and it runs for real.
 
 ## Real proof (live, multi-provider)
 
 ```bash
 pip install -e ".[providers,datasets]"
 export ANTHROPIC_API_KEY=...      # and/or OPENAI_API_KEY / DEEPSEEK_API_KEY
-tjbench run --benchmark humaneval \
+tjb run --benchmark humaneval \
   --original anthropic:claude-opus-4-7 \
   --limit 50 --html
 ```
@@ -187,7 +189,7 @@ tjbench run --benchmark humaneval \
 ```bash
 pip install -e ".[providers,judge]"
 export DEEPSEEK_API_KEY=...
-TJBENCH_JUDGE=deepseek tjbench replay \
+TJBENCH_JUDGE=deepseek tjb replay \
   --telemetry sessions.jsonl \
   --candidate deepseek:deepseek-chat \
   --judge deepseek --limit 50 --html
@@ -229,12 +231,12 @@ TokenJam is consumed as a **published package**, never vendored:
 
 ```bash
 make update-tokenjam     # pip install -U tokenjam; prints the new version
-tjbench version          # shows the exact tokenjam build proofs will stamp
-tjbench run ...          # every artifact records tokenjam_version
-tjbench matrix           # diff proofs across releases; exits non-zero on regression
+tjb version          # shows the exact tokenjam build proofs will stamp
+tjb run ...          # every artifact records tokenjam_version
+tjb matrix           # diff proofs across releases; exits non-zero on regression
 ```
 
-Because every artifact in `results/` carries `tokenjam_version`, you can re-run the same benchmark across releases and catch the day a TokenJam change moves the numbers. `tjbench matrix` doubles as a CI guard.
+Because every artifact in `results/` carries `tokenjam_version`, you can re-run the same benchmark across releases and catch the day a TokenJam change moves the numbers. `tjb matrix` doubles as a CI guard.
 
 ---
 
@@ -279,7 +281,7 @@ Accuracy = pass-rate on the chosen benchmark suite — never a general "quality 
 ## Project Layout
 
 ```
-cli.py                CLI entry point (tjbench version | recommend | run | agent | replay | matrix | serve | report)
+cli.py                CLI entry point (tjb version | recommend | run | agent | replay | matrix | serve | report)
 pipeline.py           Single-shot proof pipeline (run_proof, assemble_proof)
 agent_pipeline.py     Agent proof pipeline (run_agent_proof)
 replay.py             Telemetry loader (.jsonl / .duckdb read-only)
@@ -341,7 +343,7 @@ tests/                Offline pytest suite (16 files, 75 tests)
 | [docs/overview.md](docs/overview.md) | What this project is and why it exists |
 | [docs/architecture.md](docs/architecture.md) | System design, data flow, module relationships |
 | [docs/quickstart.md](docs/quickstart.md) | Get running in 5 minutes |
-| [docs/cli-reference.md](docs/cli-reference.md) | Complete `tjbench` command reference |
+| [docs/cli-reference.md](docs/cli-reference.md) | Complete `tjb` command reference |
 | [docs/pipelines.md](docs/pipelines.md) | Single-shot and agent proof pipelines |
 | [docs/replay.md](docs/replay.md) | Replay validation — your real sessions |
 | [docs/models.md](docs/models.md) | Model client adapters and protocols |

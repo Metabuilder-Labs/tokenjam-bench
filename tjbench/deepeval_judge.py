@@ -15,7 +15,7 @@ adapter is verified the moment a valid key is exported.
   pip install -e ".[judge,providers]"
   export DEEPSEEK_API_KEY=...
   TJBENCH_JUDGE=deepseek TJBENCH_JUDGE_METRIC=correctness \
-      tjbench run --benchmark judged --original deepseek:deepseek-chat
+      tjb run --benchmark judged --original deepseek:deepseek-chat
 """
 from __future__ import annotations
 

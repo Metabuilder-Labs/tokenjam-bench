@@ -84,7 +84,7 @@ python3 run.py replay --telemetry sessions.jsonl --mock --mock-candidate-accurac
 
 A `ProofResult` artifact (`benchmark=replay`) — identical shape to every other
 proof, so it shows up in the **dashboard** (`run.py serve`), renders an **HTML
-report**, and participates in **`tjbench matrix`** cross-version tracking with no
+report**, and participates in **`tjb matrix`** cross-version tracking with no
 extra work. Cost is the historical original spend vs the candidate's measured
 spend, priced by TokenJam.
 
