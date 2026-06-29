@@ -15,9 +15,7 @@ Does TokenJam's "downsize this model" recommendation hold up? This runs the chea
 [![License: MIT](https://img.shields.io/badge/license-MIT-3d8eff?labelColor=0d1117)](LICENSE)
 
 ```bash
-pip install -e .
-tjb run          # zero-flag offline proof — writes a stamped artifact
-tjb serve        # browse the bundled real evidence in the dashboard
+$ pip install tokenjam-bench
 ```
 
 **No cloud · No signup · Offline-first**
