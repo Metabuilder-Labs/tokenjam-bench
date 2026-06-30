@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-`tokenjam-bench` (CLI: `tjbench`) is an evidence-based benchmarking harness that **proves** the effect of TokenJam's model-downsize recommendations on cost *and* accuracy. It runs benchmark tasks on an "original" model and the cheaper "candidate" model TokenJam would route to, scores both against objective ground truth (executable tests / exact-match / LLM judge), and emits a version-stamped proof artifact with full statistics (Wilson CI, McNemar exact, paired delta CI). Accuracy is always *pass-rate on the chosen suite* — never a general "quality preserved" claim.
+`tokenjam-bench` (CLI: `tjb`) is an evidence-based benchmarking harness that **proves** the effect of TokenJam's model-downsize recommendations on cost *and* accuracy. It runs benchmark tasks on an "original" model and the cheaper "candidate" model TokenJam would route to, scores both against objective ground truth (executable tests / exact-match / LLM judge), and emits a version-stamped proof artifact with full statistics (Wilson CI, McNemar exact, paired delta CI). Accuracy is always *pass-rate on the chosen suite* — never a general "quality preserved" claim.
 
 ## Shared conventions (hygiene)
 
@@ -98,7 +98,7 @@ pytest -q tests/test_stats.py                     # single file
 pytest -q tests/test_stats.py::test_wilson_basic  # single test
 ```
 
-Run the CLI from a checkout via `python3 run.py <cmd>` (the installed `tjbench` console script works identically). Commands: `version | recommend | run | workflow | agent | report | scenarios | replay | matrix | serve`.
+Run the CLI from a checkout via `python3 run.py <cmd>` (the installed `tjb` console script works identically). Commands: `version | recommend | run | agent | report | scenarios | replay | history | matrix | serve` (workflow suites run through `run --benchmark <suite>`, not a separate command).
 
 Model specs are always `provider:model` (e.g. `anthropic:claude-opus-4-7`, `deepseek:deepseek-reasoner`). `--mock` runs the entire pipeline deterministically with zero provider SDKs/keys/spend (numbers illustrative, plumbing real). Omitting `--candidate` makes the bench resolve it live from TokenJam's downgrade analyzer.
 
@@ -120,7 +120,7 @@ Both end in `assemble_proof()` (in `pipeline.py`), which stamps the TokenJam ver
 2. `cost.py` → pricing from `tokenjam.core.pricing.get_rates`
 3. `version.py` → `importlib.metadata.version("tokenjam")`, stamped onto every artifact
 
-Every artifact in `results/` carries `tokenjam_version`, so `tjbench matrix` can diff proofs across releases and catch the day a TokenJam change moves the numbers (it exits non-zero on regression — usable as a CI guard).
+Every artifact in `results/` carries `tokenjam_version`, so `tjb matrix` can diff proofs across releases and catch the day a TokenJam change moves the numbers (it exits non-zero on regression — usable as a CI guard).
 
 **Statistics are zero-dependency** (`stats.py`) — Wilson interval, McNemar exact, paired delta CI, pass@k implemented from first principles (no `scipy`/`numpy`). There is deliberately **no single `confidence = 95%` scalar**; the honest output is CI + p-value. Verdicts are `no_significant_regression` / `significant_regression` / `insufficient_evidence` — never `SAFE`.
 
