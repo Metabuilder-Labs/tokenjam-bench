@@ -106,7 +106,7 @@ Replay your real TokenJam telemetry against the cheaper candidate. No synthetic 
 
 ```bash
 tjb replay \
-  --telemetry ~/.config/tj/tj.duckdb \
+  --telemetry ~/.tj/telemetry.duckdb \
   --judge deepseek --limit 50
 ```
 
@@ -406,4 +406,4 @@ Every run writes a version-stamped JSON artifact to `results/` (and an HTML repo
 
 **`tjb replay` isn't finding my sessions.**
 
-Replay needs a real telemetry file, not a benchmark — point `--telemetry` at your TokenJam telemetry (`.jsonl` or `.duckdb`, e.g. `~/.config/tj/tj.duckdb`), and make sure `[providers]` (and `[judge]` if using `--judge`) are installed, since replay scores agreement against a judge model.
+Replay needs a real telemetry file, not a benchmark — point `--telemetry` at your TokenJam telemetry (`.jsonl` or `.duckdb`, e.g. `~/.tj/telemetry.duckdb`), and make sure `[providers]` (and `[judge]` if using `--judge`) are installed, since replay scores agreement against a judge model.
