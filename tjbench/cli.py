@@ -115,8 +115,9 @@ def cmd_recommend(original: str) -> None:
 @click.option("--max-tokens", type=int, default=1024, hidden=True)
 @click.option("--mock-candidate-accuracy", type=float, default=0.85, hidden=True,
               help="In mock mode, simulated candidate pass fraction.")
+@click.option("--dry-run", is_flag=True, help="Print the execution plan without running anything.")
 def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | None,
-            mock: bool | None, out: str, make_html: bool, output_json: bool,
+            mock: bool | None, dry_run: bool, out: str, make_html: bool, output_json: bool,
             samples: int, temperature: float, max_tokens: int,
             mock_candidate_accuracy: float) -> None:
     """Run an original-vs-candidate proof and write a stamped artifact.
@@ -129,12 +130,17 @@ def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | N
     # has no key, so the zero-flag path always works with no SDKs/keys/spend.
     if mock is None:
         mock = not _provider_has_key(original)
-        if mock and not output_json:
+        if mock and not output_json and not dry_run:
             console.print(
                 "[dim]No provider API key found — running offline (mock). "
                 "Set e.g. ANTHROPIC_API_KEY for a live proof.[/dim]"
             )
 
+    if dry_run:
+        from tjbench.pipeline import resolve_candidate
+        resolved_candidate = candidate if candidate else resolve_candidate(original)
+        _print_dry_run_plan(benchmark, original, resolved_candidate, limit, samples, mock)
+        return
     try:
         if is_agentic_workflow(benchmark):
             result = run_agent_proof(
@@ -157,6 +163,22 @@ def cmd_run(benchmark: str, original: str, candidate: str | None, limit: int | N
         hp = write_html_report(result.to_dict(), out)
         console.print(f"HTML report: [dim]{hp}[/dim]")
     _record_history(result, path, out)
+
+
+def _print_dry_run_plan(benchmark: str, original: str, candidate: str | None, limit: int | None, samples: int, mock: bool) -> None:
+    from rich.table import Table
+    table = Table(title="Dry-Run Execution Plan", title_style="bold", show_header=False)
+    table.add_column("Parameter", style="cyan")
+    table.add_column("Value", style="magenta")
+    
+    table.add_row("Benchmark", benchmark)
+    table.add_row("Original", original)
+    table.add_row("Candidate", str(candidate))
+    table.add_row("Limit", str(limit) if limit is not None else "No limit")
+    table.add_row("Samples", str(samples))
+    table.add_row("Mode", "OFFLINE" if mock else "LIVE")
+    
+    console.print(table)
 
 
 def _record_history(result, path, out) -> None:
@@ -271,8 +293,9 @@ def _render_proof(result, path, output_json: bool) -> None:
               default="ok", hidden=True,
               help="In mock mode: simulate the candidate's behavior "
                    "('unsafe' exercises the dangerous-tool safety gate).")
+@click.option("--dry-run", is_flag=True, help="Print the execution plan without running anything.")
 def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int | None,
-              mock: bool | None, out: str, make_html: bool, output_json: bool,
+              mock: bool | None, dry_run: bool, out: str, make_html: bool, output_json: bool,
               samples: int, temperature: float, max_turns: int, max_tokens: int,
               candidate_behavior: str) -> None:
     """Run a multi-turn AGENT proof (tool use + safety), with the same stats."""
@@ -284,11 +307,17 @@ def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int |
         )
     if mock is None:
         mock = not _provider_has_key(original)
-        if mock and not output_json:
+        if mock and not output_json and not dry_run:
             console.print(
                 "[dim]No provider API key found — running offline (mock). "
                 "Set e.g. ANTHROPIC_API_KEY for a live proof.[/dim]"
             )
+
+    if dry_run:
+        from tjbench.pipeline import resolve_candidate
+        resolved_candidate = candidate if candidate else resolve_candidate(original)
+        _print_dry_run_plan(benchmark, original, resolved_candidate, limit, samples, mock)
+        return
     try:
         result = run_agent_proof(
             benchmark_name=benchmark, original_spec=original, candidate_spec=candidate,
