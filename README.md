@@ -106,7 +106,7 @@ Replay your real TokenJam telemetry against the cheaper candidate. No synthetic 
 
 ```bash
 tjb replay \
-  --telemetry ~/.config/tj/tj.duckdb \
+  --telemetry ~/.tj/telemetry.duckdb \
   --judge deepseek --limit 50
 ```
 
@@ -383,3 +383,27 @@ tests/                Offline pytest suite (no keys, no network)
 - **[TokenJam](https://github.com/Metabuilder-Labs/tokenjam)** — The main cost-optimization and observability platform
 - **[TokenJam Docs](https://github.com/Metabuilder-Labs/tokenjam/tree/main/docs)** — TokenJam's own documentation
 - **[TokenJam Python SDK](https://github.com/Metabuilder-Labs/tokenjam/tree/main/tokenjam/sdk)** — SDK for instrumenting agents
+
+---
+
+## Troubleshooting
+
+**`tjb run` gives illustrative numbers, not real proof.**
+
+This is expected if no provider key is set. `tjb run` is offline-first: without a key like `ANTHROPIC_API_KEY` in the environment, it auto-enables mock mode (no SDKs, no spend) and still writes a version-stamped artifact, but the numbers are illustrative — the plumbing is real, the scores aren't. To get a real proof, export a provider key (e.g. `export ANTHROPIC_API_KEY=...`) and re-run.
+
+**`error: externally-managed-environment` on install.**
+
+This shows up on Homebrew Python and Debian 12+ / Ubuntu 24+, which block global `pip install` per PEP 668. Use `pipx install tokenjam-bench` instead — it installs into an isolated environment automatically. No `pipx`? Get it with `brew install pipx` (macOS) or `apt install pipx` (Debian/Ubuntu). A plain `pip install tokenjam-bench` also works fine inside a clean virtualenv.
+
+**`ModuleNotFoundError` or a benchmark refuses to run (e.g. `humaneval`, `gsm8k`, `judged`).**
+
+Some benchmarks need extras that aren't installed by default. `humaneval` and `gsm8k` need `[datasets]`; the `judged` benchmark needs `[judge,providers]`. Install what you need, e.g. `pip install -e ".[providers,datasets]"` for live multi-provider runs with dataset-backed benchmarks.
+
+**Where do results go, and how do I view them?**
+
+Every run writes a version-stamped JSON artifact to `results/` (and an HTML report alongside it if you pass `--html`). To browse everything visually instead of reading raw JSON, run `tjb serve --open` — it's a self-contained local dashboard that auto-refreshes as new artifacts land in `results/`. No cloud, no signup.
+
+**`tjb replay` isn't finding my sessions.**
+
+Replay needs a real telemetry file, not a benchmark — point `--telemetry` at your TokenJam telemetry (`.jsonl` or `.duckdb`, e.g. `~/.tj/telemetry.duckdb`), and make sure `[providers]` (and `[judge]` if using `--judge`) are installed, since replay scores agreement against a judge model.
