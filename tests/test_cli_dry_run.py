@@ -1,4 +1,3 @@
-import pytest
 from click.testing import CliRunner
 from unittest.mock import patch
 from tjbench.cli import cli
