@@ -313,7 +313,6 @@ def cmd_agent(benchmark: str, original: str, candidate: str | None, limit: int |
             )
 
     if dry_run:
-        from tjbench.pipeline import resolve_candidate
         resolved_candidate = candidate if candidate else resolve_candidate(original)
         _print_dry_run_plan(benchmark, original, resolved_candidate, limit, samples, mock)
         return
