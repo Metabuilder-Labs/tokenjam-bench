@@ -15,10 +15,10 @@ Does TokenJam's "downsize this model" recommendation hold up? TokenJam Bench run
 [![License: MIT](https://img.shields.io/badge/license-MIT-3d8eff?labelColor=0d1117)](LICENSE)
 
 ```bash
-pipx install tokenjam-bench
+pipx install "tokenjam-bench[providers,datasets]"
 ```
 
-<sub>Don't have pipx? `brew install pipx` on macOS, `apt install pipx` on Debian/Ubuntu. `pip install tokenjam-bench` also works in a clean venv.</sub>
+<sub>Don't have pipx? `brew install pipx` on macOS, `apt install pipx` on Debian/Ubuntu. `pip install "tokenjam-bench[providers,datasets]"` also works in a clean venv.</sub>
 
 **No cloud · No signup · Runs Locally**
 
@@ -394,7 +394,7 @@ This is expected if no provider key is set. `tjb run` is offline-first: without 
 
 **`error: externally-managed-environment` on install.**
 
-This shows up on Homebrew Python and Debian 12+ / Ubuntu 24+, which block global `pip install` per PEP 668. Use `pipx install tokenjam-bench` instead — it installs into an isolated environment automatically. No `pipx`? Get it with `brew install pipx` (macOS) or `apt install pipx` (Debian/Ubuntu). A plain `pip install tokenjam-bench` also works fine inside a clean virtualenv.
+This shows up on Homebrew Python and Debian 12+ / Ubuntu 24+, which block global `pip install` per PEP 668. Use `pipx install "tokenjam-bench[providers,datasets]"` instead — it installs into an isolated environment automatically. No `pipx`? Get it with `brew install pipx` (macOS) or `apt install pipx` (Debian/Ubuntu). A plain `pip install "tokenjam-bench[providers,datasets]"` also works fine inside a clean virtualenv.
 
 **`ModuleNotFoundError` or a benchmark refuses to run (e.g. `humaneval`, `gsm8k`, `judged`).**
 

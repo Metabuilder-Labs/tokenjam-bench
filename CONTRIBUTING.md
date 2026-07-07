@@ -16,10 +16,10 @@ Supported Python: 3.10, 3.11, 3.12. CI runs the suite on all three.
 
 The `pip install -e ".[dev]"` above is the **contributor** install — editable
 installs correctly stay `pip`. The **end-user** install is
-`pipx install tokenjam-bench` (pipx isolates the `tjb` CLI and sidesteps the
+`pipx install "tokenjam-bench[providers,datasets]"` (pipx isolates the `tjb` CLI and sidesteps the
 PEP-668 "externally-managed-environment" error on Homebrew Python and Debian
 12+/Ubuntu 24+). When you touch user-facing docs, keep `pipx` primary — don't
-reintroduce a bare `pip install tokenjam-bench` as the headline install.
+reintroduce a bare `pip install "tokenjam-bench[providers,datasets]"` as the headline install.
 
 Run the app to see your change:
 
