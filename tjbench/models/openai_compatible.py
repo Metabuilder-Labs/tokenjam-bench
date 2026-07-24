@@ -23,6 +23,8 @@ class OpenAICompatProvider:
     base_url: str | None     # None → OpenAI's default endpoint
     api_key_env: str         # env var that holds the key (never hard-coded)
     default_model: str
+    api_key_required: bool = True  # False for keyless local providers (e.g. ollama)
+    base_url_env: str | None = None  # env var that overrides base_url at call time
 
 
 # The provider registry. Future OpenAI-compatible providers: add an entry.
@@ -30,6 +32,11 @@ PROVIDERS: dict[str, OpenAICompatProvider] = {
     "openai": OpenAICompatProvider("openai", None, "OPENAI_API_KEY", "gpt-4o"),
     "deepseek": OpenAICompatProvider(
         "deepseek", "https://api.deepseek.com", "DEEPSEEK_API_KEY", "deepseek-chat"),
+    # Ollama: local OpenAI-compatible endpoint, no API key required.
+    # Override the base URL at runtime via OLLAMA_BASE_URL (e.g. for a remote host).
+    "ollama": OpenAICompatProvider(
+        "ollama", "http://localhost:11434/v1", "OLLAMA_API_KEY", "llama3",
+        api_key_required=False, base_url_env="OLLAMA_BASE_URL"),
 }
 
 
@@ -57,20 +64,37 @@ def _make_openai_client(provider: OpenAICompatProvider):
     Config is validated *before* the optional SDK import: a missing key is the
     common, actionable error, and checking it first keeps the message stable
     whether or not the (optional) `providers` extra is installed.
+
+    For keyless local providers (e.g. ollama) ``api_key_required=False`` skips
+    the key check and supplies the provider name as a harmless placeholder so
+    the OpenAI SDK's internal validation does not reject an empty string.
+
+    The effective base URL is resolved at *call time* (not import time): if the
+    provider exposes a ``base_url_env`` variable and that variable is set, it
+    takes precedence over the compiled-in default — so callers can point at a
+    remote Ollama host without touching any source file.
     """
     key = os.environ.get(provider.api_key_env)
     if not key:
-        raise RuntimeError(
-            f"{provider.api_key_env} is not set. Export it (it is read from the "
-            f"environment only and never persisted)."
-        )
+        if not provider.api_key_required:
+            # Keyless provider — use the provider name as a benign placeholder.
+            key = provider.name
+        else:
+            raise RuntimeError(
+                f"{provider.api_key_env} is not set. Export it (it is read from the "
+                f"environment only and never persisted)."
+            )
     try:
         import openai
     except ImportError as exc:
         raise RuntimeError(
             "The openai SDK is not installed. Run `pip install 'tokenjam-bench[providers]'`."
         ) from exc
-    return openai.OpenAI(api_key=key, base_url=provider.base_url)
+    # Resolve base URL: runtime env override wins over the compiled-in default.
+    base_url = provider.base_url
+    if provider.base_url_env:
+        base_url = os.environ.get(provider.base_url_env) or base_url
+    return openai.OpenAI(api_key=key, base_url=base_url)
 
 
 def _chat_create(client, *, model: str, messages: list, max_tokens: int,

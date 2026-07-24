@@ -26,22 +26,31 @@ RUN_BENCHMARK_NAMES = BENCHMARK_NAMES + ALL_WORKFLOW_NAMES
 
 # Provider → env var that holds its API key. Used to decide whether `run` can go
 # live or should fall back to the offline mock (offline-first zero-flag UX).
+# Providers with an empty list (e.g. ollama) are always treated as "live-ready".
 _PROVIDER_KEY_ENV = {
     "anthropic": ["ANTHROPIC_API_KEY"],
     "openai": ["OPENAI_API_KEY"],
     "deepseek": ["DEEPSEEK_API_KEY"],
     "google": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
+    "ollama": [],  # no key required — local endpoint always assumed reachable
 }
 
 
 def _provider_has_key(spec: str) -> bool:
-    """True if the spec's provider has an API key in the environment."""
+    """True if the spec's provider has an API key in the environment.
+
+    For keyless local providers (``ollama``) this always returns ``True`` so
+    the offline-first auto-mock logic never silently downgrades a live ollama
+    run to a mock.
+    """
     try:
         provider, _ = parse_spec(spec)
     except ValueError:
         return False
     if provider == "mock":
         return True
+    if provider == "ollama":
+        return True  # no key required; local endpoint always assumed reachable
     return any(os.environ.get(v) for v in _PROVIDER_KEY_ENV.get(provider, []))
 
 
