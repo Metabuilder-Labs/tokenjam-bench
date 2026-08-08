@@ -4,7 +4,7 @@
   <img src="docs/brand/tokenjam-bench-banner.png" alt="TokenJam Bench" width="420">
 </picture>
 
-## Evidence-based Benchmarking & Evaluations for Agents & LLMs
+## Evidence-based Benchmarking & Evaluations for TokenJam recommendations
 
 Does TokenJam's "downsize this model" recommendation hold up? TokenJam Bench runs the cheaper model against executable benchmarks and tells you (with statistics) where it keeps up and where it breaks and validates if the savings are true.
 
