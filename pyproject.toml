@@ -39,7 +39,12 @@ datasets = [
 # answer-relevancy / task-completion). The judge model needs its own API key.
 # The offline MockJudge needs none of this.
 judge = ["deepeval>=1.0"]
-dev = ["pytest", "ruff"]
+# ruff is capped below 0.16: that release expanded its default rule set (I, S,
+# UP, RUF, FURB, ...) which flags ~57 pre-existing issues across the repo and
+# turns every PR's lint job red. Pin the linter so `ruff check .` is
+# reproducible; adopting 0.16 + an explicit `[tool.ruff.lint] select` is tracked
+# as separate cleanup.
+dev = ["pytest", "ruff>=0.15,<0.16"]
 
 [project.scripts]
 # Short invocation, matching TokenJam's own `tj`. The package dir stays `tjbench`.
