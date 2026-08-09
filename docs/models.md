@@ -104,6 +104,38 @@ class ToolCall:
 - Requires `GEMINI_API_KEY`
 - Supports `gemini-*` models
 
+### OllamaClient
+
+[`models/openai_compatible.py`](../models/openai_compatible.py)
+(routes through the shared `OpenAICompatibleClient` — no separate file)
+
+- Uses Ollama's OpenAI-compatible endpoint (`/v1/chat/completions`)
+- **No API key required** — the SDK is satisfied with a placeholder automatically
+- Default base URL: `http://localhost:11434/v1`
+- Override base URL at runtime via `OLLAMA_BASE_URL`:
+  ```
+  export OLLAMA_BASE_URL=http://192.168.1.42:11434/v1
+  ```
+- Optional `OLLAMA_API_KEY` for secured/remote Ollama deployments
+- Supports any model served by Ollama (`llama3`, `mistral`, `phi3`, …)
+
+**Quick start:**
+```bash
+# Pull a model first (requires Ollama installed locally)
+ollama pull llama3
+
+# Benchmark it against a hosted original
+tjb run --candidate ollama:llama3 --original anthropic:claude-opus-4-7
+
+# Use a non-default Ollama host
+OLLAMA_BASE_URL=http://192.168.1.42:11434/v1 \
+    tjb run --candidate ollama:mistral --original openai:gpt-4o
+```
+
+> **Note:** `ollama` is never auto-mocked — the CLI treats the local endpoint
+> as always reachable, unlike cloud providers that require a key. Pass `--mock`
+> explicitly if you want an offline dry-run.
+
 ### AnthropicAgentClient
 
 [`models/anthropic_agent_client.py`](../models/anthropic_agent_client.py)
@@ -178,6 +210,9 @@ Examples:
 - `openai:gpt-4o`
 - `openai:gpt-4o-mini`
 - `google:gemini-2-5-pro`
+- `ollama:llama3`
+- `ollama:mistral`
+- `ollama:phi3`
 
 The registry tolerates dated model suffixes (e.g., `-20250514`) by stripping them during client construction.
 
